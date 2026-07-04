@@ -119,7 +119,7 @@ if readme_path.exists():
 
 setup(
     name='geom-core',
-    version='1.0.0',
+    version='0.1.0',
     author='MadFam',
     author_email='contact@madfam.io',
     description='High-performance C++ geometry analysis engine for 3D printing',
@@ -138,7 +138,7 @@ setup(
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Topic :: Scientific/Engineering :: Mathematics',
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python :: 3',
         'Programming Language :: C++',
     ],
