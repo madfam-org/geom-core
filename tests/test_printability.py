@@ -11,7 +11,7 @@ import struct
 import tempfile
 
 # Add the build directory to Python path if not already set
-build_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'build', 'python')
+build_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "build", "python")
 if os.path.exists(build_dir) and build_dir not in sys.path:
     sys.path.insert(0, build_dir)
 
@@ -36,42 +36,50 @@ def write_binary_stl_thin_plate(filepath, width=10.0, length=10.0, thickness=0.1
 
     vertices = [
         (-half_w, -half_l, -half_t),  # 0: bottom-left-bottom
-        ( half_w, -half_l, -half_t),  # 1: bottom-right-bottom
-        ( half_w,  half_l, -half_t),  # 2: top-right-bottom
-        (-half_w,  half_l, -half_t),  # 3: top-left-bottom
-        (-half_w, -half_l,  half_t),  # 4: bottom-left-top
-        ( half_w, -half_l,  half_t),  # 5: bottom-right-top
-        ( half_w,  half_l,  half_t),  # 6: top-right-top
-        (-half_w,  half_l,  half_t),  # 7: top-left-top
+        (half_w, -half_l, -half_t),  # 1: bottom-right-bottom
+        (half_w, half_l, -half_t),  # 2: top-right-bottom
+        (-half_w, half_l, -half_t),  # 3: top-left-bottom
+        (-half_w, -half_l, half_t),  # 4: bottom-left-top
+        (half_w, -half_l, half_t),  # 5: bottom-right-top
+        (half_w, half_l, half_t),  # 6: top-right-top
+        (-half_w, half_l, half_t),  # 7: top-left-top
     ]
 
     # 12 triangles (same as cube)
     triangles = [
-        (0, 2, 1), (0, 3, 2),  # Bottom
-        (4, 5, 6), (4, 6, 7),  # Top
-        (0, 4, 7), (0, 7, 3),  # Left
-        (1, 6, 5), (1, 2, 6),  # Right
-        (0, 1, 5), (0, 5, 4),  # Front
-        (3, 6, 2), (3, 7, 6),  # Back
+        (0, 2, 1),
+        (0, 3, 2),  # Bottom
+        (4, 5, 6),
+        (4, 6, 7),  # Top
+        (0, 4, 7),
+        (0, 7, 3),  # Left
+        (1, 6, 5),
+        (1, 2, 6),  # Right
+        (0, 1, 5),
+        (0, 5, 4),  # Front
+        (3, 6, 2),
+        (3, 7, 6),  # Back
     ]
 
-    with open(filepath, 'wb') as f:
-        header_text = b'Binary STL thin plate for thickness test'
-        f.write(header_text + b'\x00' * (80 - len(header_text)))
-        f.write(struct.pack('<I', len(triangles)))
+    with open(filepath, "wb") as f:
+        header_text = b"Binary STL thin plate for thickness test"
+        f.write(header_text + b"\x00" * (80 - len(header_text)))
+        f.write(struct.pack("<I", len(triangles)))
 
         for tri in triangles:
             v0, v1, v2 = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
-            edge1 = (v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2])
-            edge2 = (v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2])
-            normal = (edge1[1]*edge2[2]-edge1[2]*edge2[1],
-                     edge1[2]*edge2[0]-edge1[0]*edge2[2],
-                     edge1[0]*edge2[1]-edge1[1]*edge2[0])
-            f.write(struct.pack('<fff', *normal))
-            f.write(struct.pack('<fff', *v0))
-            f.write(struct.pack('<fff', *v1))
-            f.write(struct.pack('<fff', *v2))
-            f.write(struct.pack('<H', 0))
+            edge1 = (v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2])
+            edge2 = (v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2])
+            normal = (
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0],
+            )
+            f.write(struct.pack("<fff", *normal))
+            f.write(struct.pack("<fff", *v0))
+            f.write(struct.pack("<fff", *v1))
+            f.write(struct.pack("<fff", *v2))
+            f.write(struct.pack("<H", 0))
 
 
 def write_binary_stl_inverted_pyramid(filepath, base_size=10.0, height=5.0):
@@ -82,11 +90,11 @@ def write_binary_stl_inverted_pyramid(filepath, base_size=10.0, height=5.0):
     half = base_size / 2.0
 
     vertices = [
-        (0, 0, height),        # 0: apex (TOP - point)
-        (-half, -half, 0),     # 1: base corner (bottom)
-        ( half, -half, 0),     # 2: base corner (bottom)
-        ( half,  half, 0),     # 3: base corner (bottom)
-        (-half,  half, 0),     # 4: base corner (bottom)
+        (0, 0, height),  # 0: apex (TOP - point)
+        (-half, -half, 0),  # 1: base corner (bottom)
+        (half, -half, 0),  # 2: base corner (bottom)
+        (half, half, 0),  # 3: base corner (bottom)
+        (-half, half, 0),  # 4: base corner (bottom)
     ]
 
     # Ensure counter-clockwise winding from outside (normals point outward)
@@ -101,30 +109,32 @@ def write_binary_stl_inverted_pyramid(filepath, base_size=10.0, height=5.0):
         (1, 3, 4),  # Base triangle 2 (facing down)
     ]
 
-    with open(filepath, 'wb') as f:
-        header_text = b'Binary STL inverted pyramid for overhang test'
-        f.write(header_text + b'\x00' * (80 - len(header_text)))
-        f.write(struct.pack('<I', len(triangles)))
+    with open(filepath, "wb") as f:
+        header_text = b"Binary STL inverted pyramid for overhang test"
+        f.write(header_text + b"\x00" * (80 - len(header_text)))
+        f.write(struct.pack("<I", len(triangles)))
 
         for tri in triangles:
             v0, v1, v2 = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
-            edge1 = (v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2])
-            edge2 = (v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2])
-            normal = (edge1[1]*edge2[2]-edge1[2]*edge2[1],
-                     edge1[2]*edge2[0]-edge1[0]*edge2[2],
-                     edge1[0]*edge2[1]-edge1[1]*edge2[0])
-            f.write(struct.pack('<fff', *normal))
-            f.write(struct.pack('<fff', *v0))
-            f.write(struct.pack('<fff', *v1))
-            f.write(struct.pack('<fff', *v2))
-            f.write(struct.pack('<H', 0))
+            edge1 = (v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2])
+            edge2 = (v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2])
+            normal = (
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0],
+            )
+            f.write(struct.pack("<fff", *normal))
+            f.write(struct.pack("<fff", *v0))
+            f.write(struct.pack("<fff", *v1))
+            f.write(struct.pack("<fff", *v2))
+            f.write(struct.pack("<H", 0))
 
 
 def test_thin_wall_detection():
     """Test wall thickness analysis on a very thin plate."""
     print("\nTesting wall thickness detection...")
 
-    with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
         temp_file = f.name
 
     try:
@@ -150,8 +160,9 @@ def test_thin_wall_detection():
         print(f"  ✓ Overhang percentage: {report.overhang_percentage:.1f}%")
 
         # The thin plate should trigger wall thickness warnings
-        assert report.thin_wall_vertex_count > 0, \
-            f"Expected thin walls to be detected, but got {report.thin_wall_vertex_count}"
+        assert (
+            report.thin_wall_vertex_count > 0
+        ), f"Expected thin walls to be detected, but got {report.thin_wall_vertex_count}"
 
         print(f"  ✓ Thin walls correctly detected!")
 
@@ -170,9 +181,9 @@ def write_simple_overhang(filepath):
     # Right-hand rule: edge1 x edge2 gives normal
     # For downward normal, use clockwise winding when viewed from above
     vertices = [
-        (0, 0, 5),      # 0
-        (10, 0, 5),     # 1
-        (5, 10, 5),     # 2
+        (0, 0, 5),  # 0
+        (10, 0, 5),  # 1
+        (5, 10, 5),  # 2
     ]
 
     # ONE triangle - clockwise winding (viewed from above) = downward normal
@@ -182,32 +193,34 @@ def write_simple_overhang(filepath):
         (0, 2, 1),  # Reversed winding for downward normal
     ]
 
-    with open(filepath, 'wb') as f:
-        header_text = b'Simple downward triangle'
-        f.write(header_text + b'\x00' * (80 - len(header_text)))
-        f.write(struct.pack('<I', len(triangles)))
+    with open(filepath, "wb") as f:
+        header_text = b"Simple downward triangle"
+        f.write(header_text + b"\x00" * (80 - len(header_text)))
+        f.write(struct.pack("<I", len(triangles)))
 
         for tri in triangles:
             v0, v1, v2 = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
             # Let STL parser calculate the normal
-            edge1 = (v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2])
-            edge2 = (v2[0]-v0[0], v2[1]-v0[1], v2[2]-v0[2])
+            edge1 = (v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2])
+            edge2 = (v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2])
             # Cross product gives normal
-            normal = (edge1[1]*edge2[2]-edge1[2]*edge2[1],
-                     edge1[2]*edge2[0]-edge1[0]*edge2[2],
-                     edge1[0]*edge2[1]-edge1[1]*edge2[0])
-            f.write(struct.pack('<fff', *normal))
-            f.write(struct.pack('<fff', *v0))
-            f.write(struct.pack('<fff', *v1))
-            f.write(struct.pack('<fff', *v2))
-            f.write(struct.pack('<H', 0))
+            normal = (
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0],
+            )
+            f.write(struct.pack("<fff", *normal))
+            f.write(struct.pack("<fff", *v0))
+            f.write(struct.pack("<fff", *v1))
+            f.write(struct.pack("<fff", *v2))
+            f.write(struct.pack("<H", 0))
 
 
 def test_overhang_detection():
     """Test overhang detection on a simple downward-facing triangle."""
     print("\nTesting overhang detection...")
 
-    with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
         temp_file = f.name
 
     try:
@@ -231,12 +244,14 @@ def test_overhang_detection():
 
         # A horizontal triangle facing down should be 100% overhang
         # (angle from vertical is 90°, well above 45° threshold)
-        assert report.overhang_percentage > 50.0, \
-            f"Expected significant overhangs, but got {report.overhang_percentage:.1f}%"
+        assert (
+            report.overhang_percentage > 50.0
+        ), f"Expected significant overhangs, but got {report.overhang_percentage:.1f}%"
 
         # Score should be penalized
-        assert report.score < 90.0, \
-            f"Expected lower score due to overhangs, but got {report.score:.1f}"
+        assert (
+            report.score < 90.0
+        ), f"Expected lower score due to overhangs, but got {report.score:.1f}"
 
         print(f"  ✓ Overhangs correctly detected!")
 
@@ -251,11 +266,11 @@ def test_printability_report_structure():
 
     report = geom_core_py.PrintabilityReport()
 
-    assert hasattr(report, 'overhang_area')
-    assert hasattr(report, 'overhang_percentage')
-    assert hasattr(report, 'thin_wall_vertex_count')
-    assert hasattr(report, 'score')
-    assert hasattr(report, 'total_surface_area')
+    assert hasattr(report, "overhang_area")
+    assert hasattr(report, "overhang_percentage")
+    assert hasattr(report, "thin_wall_vertex_count")
+    assert hasattr(report, "score")
+    assert hasattr(report, "total_surface_area")
 
     # Default values
     assert report.score == 100.0
@@ -288,6 +303,7 @@ def main():
     except Exception as e:
         print(f"\n✗ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

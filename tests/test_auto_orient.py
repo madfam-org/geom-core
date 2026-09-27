@@ -52,25 +52,29 @@ def write_binary_stl_sideways_cylinder(filepath, radius=5.0, height=20.0, segmen
 
         # Bottom cap (at x=0)
         # Triangle from center to edge (normal pointing in -X direction)
-        triangles.append({
-            'normal': (-1, 0, 0),
-            'vertices': [
-                (0, 0, 0),           # Center
-                (0, y2, z2),         # Edge point 2
-                (0, y1, z1),         # Edge point 1
-            ]
-        })
+        triangles.append(
+            {
+                "normal": (-1, 0, 0),
+                "vertices": [
+                    (0, 0, 0),  # Center
+                    (0, y2, z2),  # Edge point 2
+                    (0, y1, z1),  # Edge point 1
+                ],
+            }
+        )
 
         # Top cap (at x=height)
         # Triangle from center to edge (normal pointing in +X direction)
-        triangles.append({
-            'normal': (1, 0, 0),
-            'vertices': [
-                (height, 0, 0),      # Center
-                (height, y1, z1),    # Edge point 1
-                (height, y2, z2),    # Edge point 2
-            ]
-        })
+        triangles.append(
+            {
+                "normal": (1, 0, 0),
+                "vertices": [
+                    (height, 0, 0),  # Center
+                    (height, y1, z1),  # Edge point 1
+                    (height, y2, z2),  # Edge point 2
+                ],
+            }
+        )
 
         # Side face (two triangles per segment)
         # Calculate outward normal (perpendicular to X-axis)
@@ -78,45 +82,49 @@ def write_binary_stl_sideways_cylinder(filepath, radius=5.0, height=20.0, segmen
         normal_z = math.sin((angle1 + angle2) / 2.0)
 
         # First triangle of side quad
-        triangles.append({
-            'normal': (0, normal_y, normal_z),
-            'vertices': [
-                (0, y1, z1),         # Bottom edge 1
-                (height, y1, z1),    # Top edge 1
-                (0, y2, z2),         # Bottom edge 2
-            ]
-        })
+        triangles.append(
+            {
+                "normal": (0, normal_y, normal_z),
+                "vertices": [
+                    (0, y1, z1),  # Bottom edge 1
+                    (height, y1, z1),  # Top edge 1
+                    (0, y2, z2),  # Bottom edge 2
+                ],
+            }
+        )
 
         # Second triangle of side quad
-        triangles.append({
-            'normal': (0, normal_y, normal_z),
-            'vertices': [
-                (0, y2, z2),         # Bottom edge 2
-                (height, y1, z1),    # Top edge 1
-                (height, y2, z2),    # Top edge 2
-            ]
-        })
+        triangles.append(
+            {
+                "normal": (0, normal_y, normal_z),
+                "vertices": [
+                    (0, y2, z2),  # Bottom edge 2
+                    (height, y1, z1),  # Top edge 1
+                    (height, y2, z2),  # Top edge 2
+                ],
+            }
+        )
 
     # Write binary STL
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         # Header (80 bytes)
-        header_text = b'Sideways cylinder for auto-orient test'
-        f.write(header_text + b'\x00' * (80 - len(header_text)))
+        header_text = b"Sideways cylinder for auto-orient test"
+        f.write(header_text + b"\x00" * (80 - len(header_text)))
 
         # Triangle count
-        f.write(struct.pack('<I', len(triangles)))
+        f.write(struct.pack("<I", len(triangles)))
 
         # Triangles
         for tri in triangles:
             # Normal vector (3 floats)
-            f.write(struct.pack('<fff', *tri['normal']))
+            f.write(struct.pack("<fff", *tri["normal"]))
 
             # Vertices (3 vertices × 3 floats each)
-            for vertex in tri['vertices']:
-                f.write(struct.pack('<fff', *vertex))
+            for vertex in tri["vertices"]:
+                f.write(struct.pack("<fff", *vertex))
 
             # Attribute byte count (uint16, always 0)
-            f.write(struct.pack('<H', 0))
+            f.write(struct.pack("<H", 0))
 
     print(f"Created sideways cylinder: {len(triangles)} triangles")
 
@@ -142,26 +150,31 @@ def test_auto_orientation():
             print("✗ Test failed: Could not load STL file")
             return False
 
-        print(f"Loaded sideways cylinder: {analyzer.get_vertex_count()} vertices, "
-              f"{analyzer.get_triangle_count()} triangles")
+        print(
+            f"Loaded sideways cylinder: {analyzer.get_vertex_count()} vertices, "
+            f"{analyzer.get_triangle_count()} triangles"
+        )
         print()
 
         # Test 1: Verify original orientation has poor printability
         print("Testing original orientation (cylinder lying on side, Z-up)...")
         original_report = analyzer.get_printability_report(
-            critical_angle_degrees=45.0,
-            min_wall_thickness_mm=0.8
+            critical_angle_degrees=45.0, min_wall_thickness_mm=0.8
         )
 
         print(f"  Original overhang area: {original_report.overhang_area:.2f} mm²")
-        print(f"  Original overhang percentage: {original_report.overhang_percentage:.1f}%")
+        print(
+            f"  Original overhang percentage: {original_report.overhang_percentage:.1f}%"
+        )
         print(f"  Original score: {original_report.score:.1f}/100")
         print()
 
         # Sideways cylinder should have significant overhangs (the curved sides)
         if original_report.overhang_percentage < 10.0:
-            print(f"✗ Test failed: Expected significant overhangs for sideways cylinder, "
-                  f"got {original_report.overhang_percentage:.1f}%")
+            print(
+                f"✗ Test failed: Expected significant overhangs for sideways cylinder, "
+                f"got {original_report.overhang_percentage:.1f}%"
+            )
             return False
 
         print("  ✓ Sideways cylinder has expected overhangs")
@@ -169,10 +182,7 @@ def test_auto_orientation():
 
         # Test 2: Run auto-orientation
         print("Running auto-orientation optimization...")
-        result = analyzer.auto_orient(
-            sample_resolution=26,
-            critical_angle_degrees=45.0
-        )
+        result = analyzer.auto_orient(sample_resolution=26, critical_angle_degrees=45.0)
         print()
 
         # Test 3: Verify improvement
@@ -180,14 +190,18 @@ def test_auto_orientation():
         print(f"  Original overhang: {result.original_overhang_area:.2f} mm²")
         print(f"  Optimized overhang: {result.optimized_overhang_area:.2f} mm²")
         print(f"  Improvement: {result.improvement_percent:.1f}%")
-        print(f"  Optimal up vector: ({result.optimal_up_vector.x:.3f}, "
-              f"{result.optimal_up_vector.y:.3f}, {result.optimal_up_vector.z:.3f})")
+        print(
+            f"  Optimal up vector: ({result.optimal_up_vector.x:.3f}, "
+            f"{result.optimal_up_vector.y:.3f}, {result.optimal_up_vector.z:.3f})"
+        )
         print()
 
         # For a cylinder, there are multiple optimal orientations
         # The key is that we found one that significantly reduces overhangs
         up_vec = result.optimal_up_vector
-        print(f"  ✓ Found optimal orientation: ({up_vec.x:.3f}, {up_vec.y:.3f}, {up_vec.z:.3f})")
+        print(
+            f"  ✓ Found optimal orientation: ({up_vec.x:.3f}, {up_vec.y:.3f}, {up_vec.z:.3f})"
+        )
 
         # The optimized overhang should be significantly less than original
         if result.optimized_overhang_area >= result.original_overhang_area:
@@ -200,7 +214,9 @@ def test_auto_orientation():
 
         # Expect at least 20% improvement for this test case
         if result.improvement_percent < 20.0:
-            print(f"✗ Test failed: Expected at least 20% improvement, got {result.improvement_percent:.1f}%")
+            print(
+                f"✗ Test failed: Expected at least 20% improvement, got {result.improvement_percent:.1f}%"
+            )
             return False
 
         print(f"  ✓ Significant improvement achieved")
