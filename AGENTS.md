@@ -1,5 +1,7 @@
 # Geom Core Agent Operating Guide
 
+> Last Updated: 2026-09-28
+
 > [!IMPORTANT]
 > MADFAM-ENCLII-FIRST-LEGACY-RAW v1: This document contains legacy raw infrastructure command examples.
 > Routine production operations must use Enclii web, API, or CLI. Treat raw
@@ -380,3 +382,8 @@ pnpm publish
 *geom-core - The Physics Standard | Zero Dependencies, Maximum Performance*
 
 <!-- END LEGACY_CLAUDE_IMPORT -->
+
+## Repository boundary
+
+Read [the public repository boundary](./docs/PUBLIC_REPO_BOUNDARY.md).
+Owns reusable native and WebAssembly geometry analysis and its language bindings. Product UI, catalog state, authorization and production operations belong to consuming platforms. Experimental CAD capabilities must be verified separately from mesh analysis.
