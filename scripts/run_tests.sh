@@ -31,6 +31,7 @@ python3 tests/test_auto_orient.py
 echo ""
 echo "Running test_step.py..."
 python3 tests/test_step.py
+python3 tests/test_step_geometry.py
 
 echo ""
 echo "========================================"

@@ -354,6 +354,9 @@ if(BUILD_PYTHON_BINDINGS AND NOT EMSCRIPTEN)
     )
 
     target_link_libraries(geom_core_py PRIVATE geom_core_lib)
+    if(OCCT_ENABLED)
+        target_compile_definitions(geom_core_py PRIVATE GC_USE_OCCT)
+    endif()
 
     set_target_properties(geom_core_py PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python"

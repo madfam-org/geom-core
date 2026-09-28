@@ -75,6 +75,8 @@ jobs:
         ./scripts/build_python.sh
     
     - name: Run tests
+      env:
+        GEOM_REQUIRE_OCCT: "1"
       run: |
         chmod +x scripts/run_tests.sh
         ./scripts/run_tests.sh

@@ -6,6 +6,11 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(geom_core_py, m) {
     m.doc() = "geom-core: High-performance geometry analysis library";
+#ifdef GC_USE_OCCT
+    m.attr("has_occt") = true;
+#else
+    m.attr("has_occt") = false;
+#endif
 
     // PrintabilityReport struct
     py::class_<madfam::geom::PrintabilityReport>(m, "PrintabilityReport")
