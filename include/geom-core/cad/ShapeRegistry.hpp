@@ -58,6 +58,7 @@ public:
     };
     Stats getStats() const;
     void resetStats();
+    void recordOperation(double durationMs);
     
     // Callbacks for monitoring
     using ShapeCreatedCallback = std::function<void(const ShapeHandle&)>;
@@ -73,7 +74,6 @@ private:
     
     std::string generateId();
     void updateAccessTime(const std::string& id);
-    void recordOperation(double durationMs);
     
     struct ShapeEntry {
         std::unique_ptr<InternalShape> shape;

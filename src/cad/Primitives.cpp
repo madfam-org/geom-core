@@ -2,7 +2,8 @@
 #include "geom-core/cad/ShapeRegistry.hpp"
 
 // OCCT headers (conditional compilation for native builds)
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
+#include "OCCTShape.hpp"
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
@@ -38,69 +39,7 @@ namespace madfam::geom::cad {
 // OCCT Shape Wrapper (when OCCT is available)
 // ===========================================================================
 
-#ifdef MADFAM_OCCT_AVAILABLE
-
-class OCCTShape : public InternalShape {
-public:
-    OCCTShape(const TopoDS_Shape& shape) : shape_(shape) {
-        computeBoundingBox();
-    }
-    
-    const TopoDS_Shape& getOCCT() const { return shape_; }
-    
-    BoundingBox getBoundingBox() const override {
-        return bbox_;
-    }
-    
-    std::string computeHash() const override {
-        // Simple hash based on bounding box and topology
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(6);
-        ss << bbox_.min.x << bbox_.min.y << bbox_.min.z;
-        ss << bbox_.max.x << bbox_.max.y << bbox_.max.z;
-        ss << static_cast<int>(shape_.ShapeType());
-        
-        // Use string hash
-        std::hash<std::string> hasher;
-        size_t hash = hasher(ss.str());
-        
-        std::stringstream result;
-        result << std::hex << hash;
-        return result.str();
-    }
-    
-    size_t getEstimatedMemoryBytes() const override {
-        // Rough estimate based on shape complexity
-        // A simple primitive is ~1KB, complex shapes can be ~100KB+
-        double volume = bbox_.volume();
-        size_t baseSize = 1024; // 1KB minimum
-        
-        // Add size based on volume complexity
-        if (volume > 1e6) {
-            baseSize += 10240;
-        } else if (volume > 1e3) {
-            baseSize += 5120;
-        }
-        
-        return baseSize;
-    }
-    
-private:
-    TopoDS_Shape shape_;
-    BoundingBox bbox_;
-    
-    void computeBoundingBox() {
-        Bnd_Box box;
-        BRepBndLib::Add(shape_, box);
-        
-        if (!box.IsVoid()) {
-            double xmin, ymin, zmin, xmax, ymax, zmax;
-            box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
-            bbox_.min = Vector3(xmin, ymin, zmin);
-            bbox_.max = Vector3(xmax, ymax, zmax);
-        }
-    }
-};
+#ifdef GC_USE_OCCT
 
 // Helper to convert Vector3 to gp_Pnt
 inline gp_Pnt toGpPnt(const Vector3& v) {
@@ -117,39 +56,7 @@ inline gp_Vec toGpVec(const Vector3& v) {
     return gp_Vec(v.x, v.y, v.z);
 }
 
-#endif // MADFAM_OCCT_AVAILABLE
-
-// ===========================================================================
-// Fallback Shape (when OCCT is not available - simple placeholder)
-// ===========================================================================
-
-class PlaceholderShape : public InternalShape {
-public:
-    PlaceholderShape(ShapeType type, const BoundingBox& bbox)
-        : type_(type), bbox_(bbox) {}
-    
-    BoundingBox getBoundingBox() const override { return bbox_; }
-    
-    std::string computeHash() const override {
-        std::stringstream ss;
-        ss << static_cast<int>(type_) << "_";
-        ss << bbox_.min.x << bbox_.min.y << bbox_.min.z;
-        ss << bbox_.max.x << bbox_.max.y << bbox_.max.z;
-        
-        std::hash<std::string> hasher;
-        std::stringstream result;
-        result << std::hex << hasher(ss.str());
-        return result.str();
-    }
-    
-    size_t getEstimatedMemoryBytes() const override {
-        return 256; // Placeholder is minimal
-    }
-    
-private:
-    ShapeType type_;
-    BoundingBox bbox_;
-};
+#endif // GC_USE_OCCT
 
 // ===========================================================================
 // Primitive Implementations
@@ -165,7 +72,7 @@ Result<ShapeHandle> Engine::makeBox(const BoxParams& params) {
     std::unique_ptr<InternalShape> shape;
     BoundingBox bbox;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         if (params.center.has_value()) {
             auto c = params.center.value();
@@ -196,16 +103,7 @@ Result<ShapeHandle> Engine::makeBox(const BoxParams& params) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    // Fallback: create placeholder
-    if (params.center.has_value()) {
-        auto c = params.center.value();
-        bbox.min = Vector3(c.x - params.width/2, c.y - params.height/2, c.z - params.depth/2);
-        bbox.max = Vector3(c.x + params.width/2, c.y + params.height/2, c.z + params.depth/2);
-    } else {
-        bbox.min = Vector3(0, 0, 0);
-        bbox.max = Vector3(params.width, params.height, params.depth);
-    }
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Solid, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     // Register shape
@@ -234,7 +132,7 @@ Result<ShapeHandle> Engine::makeSphere(const SphereParams& params) {
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         gp_Pnt center(0, 0, 0);
         if (params.center.has_value()) {
@@ -253,11 +151,7 @@ Result<ShapeHandle> Engine::makeSphere(const SphereParams& params) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    Vector3 c = params.center.value_or(Vector3(0, 0, 0));
-    bbox.min = Vector3(c.x - params.radius, c.y - params.radius, c.z - params.radius);
-    bbox.max = Vector3(c.x + params.radius, c.y + params.radius, c.z + params.radius);
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Solid, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Solid);
@@ -284,7 +178,7 @@ Result<ShapeHandle> Engine::makeCylinder(const CylinderParams& params) {
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         gp_Ax2 axis;
         if (params.center.has_value()) {
@@ -305,11 +199,7 @@ Result<ShapeHandle> Engine::makeCylinder(const CylinderParams& params) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    Vector3 c = params.center.value_or(Vector3(0, 0, 0));
-    bbox.min = Vector3(c.x - params.radius, c.y - params.radius, c.z);
-    bbox.max = Vector3(c.x + params.radius, c.y + params.radius, c.z + params.height);
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Solid, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Solid);
@@ -340,7 +230,7 @@ Result<ShapeHandle> Engine::makeCone(const ConeParams& params) {
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         gp_Ax2 axis;
         if (params.center.has_value()) {
@@ -361,12 +251,7 @@ Result<ShapeHandle> Engine::makeCone(const ConeParams& params) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    Vector3 c = params.center.value_or(Vector3(0, 0, 0));
-    double maxR = std::max(params.radius1, params.radius2);
-    bbox.min = Vector3(c.x - maxR, c.y - maxR, c.z);
-    bbox.max = Vector3(c.x + maxR, c.y + maxR, c.z + params.height);
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Solid, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Solid);
@@ -397,7 +282,7 @@ Result<ShapeHandle> Engine::makeTorus(const TorusParams& params) {
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         gp_Ax2 axis;
         if (params.center.has_value()) {
@@ -418,12 +303,7 @@ Result<ShapeHandle> Engine::makeTorus(const TorusParams& params) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    Vector3 c = params.center.value_or(Vector3(0, 0, 0));
-    double outerR = params.majorRadius + params.minorRadius;
-    bbox.min = Vector3(c.x - outerR, c.y - outerR, c.z - params.minorRadius);
-    bbox.max = Vector3(c.x + outerR, c.y + outerR, c.z + params.minorRadius);
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Solid, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Solid);
@@ -450,7 +330,7 @@ Result<ShapeHandle> Engine::makeLine(const Vector3& start, const Vector3& end) {
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         GC_MakeSegment makeSegment(toGpPnt(start), toGpPnt(end));
         if (!makeSegment.IsDone()) {
@@ -469,18 +349,7 @@ Result<ShapeHandle> Engine::makeLine(const Vector3& start, const Vector3& end) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    bbox.min = Vector3(
-        std::min(start.x, end.x),
-        std::min(start.y, end.y),
-        std::min(start.z, end.z)
-    );
-    bbox.max = Vector3(
-        std::max(start.x, end.x),
-        std::max(start.y, end.y),
-        std::max(start.z, end.z)
-    );
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Edge, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Edge);
@@ -504,7 +373,7 @@ Result<ShapeHandle> Engine::makeCircle(const Vector3& center, double radius, con
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         gp_Ax2 axis(toGpPnt(center), toGpDir(normal));
         Handle(Geom_Circle) circle = new Geom_Circle(axis, radius);
@@ -528,10 +397,7 @@ Result<ShapeHandle> Engine::makeCircle(const Vector3& center, double radius, con
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    bbox.min = Vector3(center.x - radius, center.y - radius, center.z);
-    bbox.max = Vector3(center.x + radius, center.y + radius, center.z);
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Wire, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Wire);
@@ -573,7 +439,7 @@ Result<ShapeHandle> Engine::makePolygon(const std::vector<Vector3>& points, bool
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         BRepBuilderAPI_MakeWire makeWire;
         
@@ -608,18 +474,7 @@ Result<ShapeHandle> Engine::makePolygon(const std::vector<Vector3>& points, bool
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    bbox.min = points[0];
-    bbox.max = points[0];
-    for (const auto& p : points) {
-        bbox.min.x = std::min(bbox.min.x, p.x);
-        bbox.min.y = std::min(bbox.min.y, p.y);
-        bbox.min.z = std::min(bbox.min.z, p.z);
-        bbox.max.x = std::max(bbox.max.x, p.x);
-        bbox.max.y = std::max(bbox.max.y, p.y);
-        bbox.max.z = std::max(bbox.max.z, p.z);
-    }
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Wire, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Wire);
@@ -639,7 +494,7 @@ Result<ShapeHandle> Engine::makeArc(const Vector3& start, const Vector3& middle,
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         GC_MakeArcOfCircle makeArc(toGpPnt(start), toGpPnt(middle), toGpPnt(end));
         if (!makeArc.IsDone()) {
@@ -658,18 +513,7 @@ Result<ShapeHandle> Engine::makeArc(const Vector3& start, const Vector3& middle,
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    BoundingBox bbox;
-    bbox.min = Vector3(
-        std::min({start.x, middle.x, end.x}),
-        std::min({start.y, middle.y, end.y}),
-        std::min({start.z, middle.z, end.z})
-    );
-    bbox.max = Vector3(
-        std::max({start.x, middle.x, end.x}),
-        std::max({start.y, middle.y, end.y}),
-        std::max({start.z, middle.z, end.z})
-    );
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Edge, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Edge);
@@ -693,7 +537,7 @@ Result<ShapeHandle> Engine::makeWire(const std::vector<std::string>& edgeIds) {
     
     std::unique_ptr<InternalShape> shape;
     
-#ifdef MADFAM_OCCT_AVAILABLE
+#ifdef GC_USE_OCCT
     try {
         BRepBuilderAPI_MakeWire makeWire;
         
@@ -728,30 +572,7 @@ Result<ShapeHandle> Engine::makeWire(const std::vector<std::string>& edgeIds) {
         return Result<ShapeHandle>::error("OCCT_EXCEPTION", e.what());
     }
 #else
-    // Fallback: compute combined bounding box
-    BoundingBox bbox;
-    bool first = true;
-    
-    for (const auto& id : edgeIds) {
-        auto handle = ShapeRegistry::instance().getHandle(id);
-        if (!handle.isValid()) {
-            return Result<ShapeHandle>::error("SHAPE_NOT_FOUND", "Edge not found: " + id);
-        }
-        
-        if (first) {
-            bbox = handle.bbox;
-            first = false;
-        } else {
-            bbox.min.x = std::min(bbox.min.x, handle.bbox.min.x);
-            bbox.min.y = std::min(bbox.min.y, handle.bbox.min.y);
-            bbox.min.z = std::min(bbox.min.z, handle.bbox.min.z);
-            bbox.max.x = std::max(bbox.max.x, handle.bbox.max.x);
-            bbox.max.y = std::max(bbox.max.y, handle.bbox.max.y);
-            bbox.max.z = std::max(bbox.max.z, handle.bbox.max.z);
-        }
-    }
-    
-    shape = std::make_unique<PlaceholderShape>(ShapeType::Wire, bbox);
+    return Result<ShapeHandle>::error("OCCT_UNAVAILABLE", "CAD primitives require OCCT");
 #endif
     
     std::string id = ShapeRegistry::instance().registerShape(std::move(shape), ShapeType::Wire);

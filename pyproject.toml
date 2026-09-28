@@ -36,7 +36,7 @@ Documentation = "https://github.com/madfam-io/geom-core#readme"
 Issues = "https://github.com/madfam-io/geom-core/issues"
 
 [tool.setuptools]
-packages = ["geom_core"]
+packages = []
 
 [tool.setuptools.package-data]
 geom_core = ["*.so", "*.pyd", "*.dylib"]

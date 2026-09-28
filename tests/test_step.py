@@ -29,11 +29,11 @@ def test_step_api():
     # Test 1: Check that loadStep method exists
     print("Testing STEP API availability...")
     analyzer = gc.Analyzer()
-    
-    if not hasattr(analyzer, 'load_step'):
+
+    if not hasattr(analyzer, "load_step"):
         print("✗ Test failed: load_step() method not found")
         return False
-    
+
     print("  ✓ load_step() method exists")
     print()
 
@@ -41,7 +41,7 @@ def test_step_api():
     # This should return False (either because file doesn't exist or OCCT not available)
     print("Testing load_step() with non-existent file...")
     result = analyzer.load_step("nonexistent.step")
-    
+
     if result:
         print("  Warning: load_step() returned True for non-existent file")
     else:
@@ -51,10 +51,10 @@ def test_step_api():
     # Test 3: Create a simple test scenario
     print("Testing STEP support status...")
     test_file = "/tmp/test_cube.step"
-    
+
     # Try to load (will fail if file doesn't exist or OCCT not available)
     success = analyzer.load_step(test_file)
-    
+
     if success:
         print("  ✓ OCCT is available and STEP file loaded successfully")
         print(f"    Vertices: {analyzer.get_vertex_count()}")
@@ -70,10 +70,12 @@ def test_step_api():
     print()
     print("Note: Full STEP functionality requires Open CASCADE Technology (OCCT)")
     print("To enable STEP support:")
-    print("  Ubuntu/Debian: sudo apt-get install libocct-data-exchange-dev libocct-ocaf-dev")
+    print(
+        "  Ubuntu/Debian: sudo apt-get install libocct-data-exchange-dev libocct-ocaf-dev"
+    )
     print("  macOS: brew install opencascade")
     print("  Then rebuild: cmake -DUSE_OCCT=ON .. && make")
-    
+
     return True
 
 

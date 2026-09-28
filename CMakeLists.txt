@@ -11,6 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build Options
+option(BUILD_SHARED_LIBS "Build a shared native analysis library" ON)
+option(BUILD_NATIVE_CAD "Build the experimental native CAD authoring sources" OFF)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" ON)
 option(BUILD_WASM_BINDINGS "Build WebAssembly bindings" OFF)
 option(BUILD_WASM_SIMD "Enable SIMD optimizations in WASM" ON)
@@ -119,12 +121,16 @@ endif()
 # Native Library Build
 # ===========================================================================
 if(NOT EMSCRIPTEN)
-    add_library(geom_core_lib SHARED
+    # The Python Analyzer exposes mesh analysis only. CAD authoring is built
+    # by the separate WASM target or explicit experimental native opt-in.
+    add_library(geom_core_lib
         ${CORE_SOURCES}
-        ${CAD_SOURCES}
-        ${IO_SOURCES}
         ${GPU_SOURCES}
     )
+
+    if(BUILD_NATIVE_CAD)
+        target_sources(geom_core_lib PRIVATE ${CAD_SOURCES} ${IO_SOURCES})
+    endif()
 
     target_include_directories(geom_core_lib
         PUBLIC
@@ -140,9 +146,17 @@ if(NOT EMSCRIPTEN)
         set(OCCT_LIBS
             TKernel TKMath TKBRep TKTopAlgo TKMesh TKPrim TKGeomAlgo
             TKG3d TKG2d TKGeomBase TKShHealing TKFillet TKOffset TKBool
-            TKBO TKFeat TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209 TKXSBase
-            TKSTL TKIGES TKXSBase
+            TKBO TKFeat TKXSBase
         )
+        # OCCT 7.8+ consolidated the data-exchange toolkits. Homebrew ships
+        # these names; older Linux distributions still ship the TKSTEP family.
+        find_library(GEOM_OCCT_MODERN_STEP NAMES TKDESTEP
+            HINTS ${OpenCASCADE_LIBRARY_DIR})
+        if(GEOM_OCCT_MODERN_STEP)
+            list(APPEND OCCT_LIBS TKDESTEP TKDESTL TKDEIGES)
+        else()
+            list(APPEND OCCT_LIBS TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209 TKSTL TKIGES)
+        endif()
 
         foreach(lib ${OCCT_LIBS})
             find_library(${lib}_PATH NAMES ${lib}
@@ -163,6 +177,7 @@ if(NOT EMSCRIPTEN)
     endif()
 
     set_target_properties(geom_core_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME "geom_core"
         VERSION ${PROJECT_VERSION}
         SOVERSION 2
@@ -187,15 +202,17 @@ if(BUILD_WASM_BINDINGS)
     )
 
     # Environment flags
-    list(APPEND WASM_BASE_FLAGS "-s ENVIRONMENT=web,worker")
+    list(APPEND WASM_BASE_FLAGS "-s ENVIRONMENT=web,worker,node")
 
     # Threading support (requires SharedArrayBuffer)
     if(BUILD_WASM_THREADS)
         list(APPEND WASM_BASE_FLAGS
             "-s USE_PTHREADS=1"
-            "-s PTHREAD_POOL_SIZE=navigator.hardwareConcurrency||4"
-            "-s PROXY_TO_PTHREAD=1"  # Keep main thread responsive
+            "-s PTHREAD_POOL_SIZE=4"
         )
+        # This is an embind library without main(), not an application to proxy
+        # to a pthread. Every object must agree with the shared-memory linker.
+        add_compile_options(-pthread)
     endif()
 
     # SIMD support (90%+ browser coverage)
@@ -344,11 +361,12 @@ if(BUILD_PYTHON_BINDINGS AND NOT EMSCRIPTEN)
 
     pybind11_add_module(geom_core_py
         bindings/python/PyBindEntry.cpp
-        bindings/python/PyCAD.cpp
-        bindings/python/PyAnalysis.cpp
     )
 
     target_link_libraries(geom_core_py PRIVATE geom_core_lib)
+    if(OCCT_ENABLED)
+        target_compile_definitions(geom_core_py PRIVATE GC_USE_OCCT)
+    endif()
 
     set_target_properties(geom_core_py PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python"

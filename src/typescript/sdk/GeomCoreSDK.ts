@@ -13,7 +13,7 @@
  * @module geom-core/sdk
  */
 
-import type { GeometryEngine } from "../bindings/GeometryEngine";
+import type { GeometryEngine } from "../bindings/GeometryEngine.js";
 import type {
   ShapeHandle,
   OperationResult,
@@ -43,10 +43,10 @@ import type {
   ScaleParams,
   MirrorParams,
   ShapeProperties,
-} from "../bindings/types";
+} from "../bindings/types.js";
 
 // Vec3 re-exported for SDK consumers
-export type { Vec3 } from "../bindings/types";
+export type { Vec3 } from "../bindings/types.js";
 
 // =============================================================================
 // Configuration Types

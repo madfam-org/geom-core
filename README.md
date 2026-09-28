@@ -1,12 +1,17 @@
 # geom-core
 
-![CI/CD Pipeline](https://img.shields.io/badge/build-passing-brightgreen)
+[![CI/CD Pipeline](https://github.com/madfam-org/geom-core/actions/workflows/ci.yml/badge.svg)](https://github.com/madfam-org/geom-core/actions/workflows/ci.yml)
 ![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue)
 ![C++17](https://img.shields.io/badge/c++-17-blue)
 ![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
 
 High-performance C++ geometry analysis engine for 3D printing, with Python and WebAssembly bindings.
+
+Native Python mesh analysis can be built and tested independently. CAD authoring
+and WASM remain experimental and have unresolved build failures. See
+[build and verification boundaries](docs/BUILD-STATUS.md) before publishing or
+using those packages; native analysis test results do not validate them.
 
 ## Features
 
@@ -19,7 +24,7 @@ High-performance C++ geometry analysis engine for 3D printing, with Python and W
 - **Visualization Data Export**: Per-triangle overhang maps and per-vertex wall thickness for real-time visualization
 - **Interactive 3D Viewer**: WebGL-based Solarpunk viewer with Three.js and zero-copy WASM integration
 - **Cross-Platform**: Python bindings (Linux, macOS, Windows) and WebAssembly for browsers
-- **Production-Ready**: Comprehensive test suite, CI/CD pipeline, proper packaging
+- **Verification**: Native analysis tests and package checks; separate CAD/WASM build gates
 
 ## Installation
 

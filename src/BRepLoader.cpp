@@ -84,7 +84,7 @@ bool loadStepFile(const std::string& filepath,
     // OCCT provides per-face triangulations with local indices
     
     std::vector<Vector3> vertices;
-    std::vector<Mesh::Triangle> triangles;
+    std::vector<Triangle> triangles;
     
     // Map from (face_ptr, local_vertex_index) to global vertex index
     // We use a map to deduplicate vertices across faces
@@ -114,10 +114,9 @@ bool loadStepFile(const std::string& filepath,
         std::vector<int> localToGlobal(triangulation->NbNodes() + 1); // OCCT uses 1-based indexing
         
         // Process vertices
-        const TColgp_Array1OfPnt& nodes = triangulation->Nodes();
-        for (Standard_Integer i = nodes.Lower(); i <= nodes.Upper(); i++) {
-            // Get vertex position
-            gp_Pnt pt = nodes(i);
+        for (Standard_Integer i = 1; i <= triangulation->NbNodes(); i++) {
+            // Indexed access works with current OCCT triangulation storage.
+            gp_Pnt pt = triangulation->Node(i);
             
             // Apply transformation
             pt.Transform(transform);
@@ -144,9 +143,8 @@ bool loadStepFile(const std::string& filepath,
         }
         
         // Process triangles
-        const Poly_Array1OfTriangle& tris = triangulation->Triangles();
-        for (Standard_Integer i = tris.Lower(); i <= tris.Upper(); i++) {
-            const Poly_Triangle& tri = tris(i);
+        for (Standard_Integer i = 1; i <= triangulation->NbTriangles(); i++) {
+            const Poly_Triangle tri = triangulation->Triangle(i);
             
             // Get vertex indices (1-based in OCCT)
             Standard_Integer n1, n2, n3;
@@ -156,7 +154,7 @@ bool loadStepFile(const std::string& filepath,
             bool reversed = (face.Orientation() == TopAbs_REVERSED);
             
             // Convert to global indices and create triangle
-            Mesh::Triangle triangle;
+            Triangle triangle;
             if (reversed) {
                 // Reverse winding order
                 triangle.v0 = localToGlobal[n1];

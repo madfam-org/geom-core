@@ -63,12 +63,12 @@ import type {
   MateConstraint,
   PatternParams,
   PatternResult,
-} from "./types";
+} from "./types.js";
 
 // Re-export types that may be used by consumers
-export type { MateType, PatternType } from "./types";
+export type { MateType, PatternType } from "./types.js";
 
-import { createHandleId, getShapeId } from "./types";
+import { createHandleId, getShapeId } from "./types.js";
 
 // =============================================================================
 // Logger
@@ -85,7 +85,11 @@ interface Logger {
 
 function createLogger(module: string): Logger {
   const log = (level: LogLevel, msg: string, ...args: unknown[]) => {
-    if (process.env.NODE_ENV !== "production" || level === "error") {
+    if (
+      typeof process === "undefined" ||
+      process.env.NODE_ENV !== "production" ||
+      level === "error"
+    ) {
       console[level](`[${module}]`, msg, ...args);
     }
   };

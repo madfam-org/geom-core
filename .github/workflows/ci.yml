@@ -8,6 +8,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  typescript-build:
+    name: TypeScript package build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.0
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+    - run: pnpm typecheck
+    - run: pnpm build:ts
+    - run: pnpm test
+
   # ========================================
   # Job 1: Build and Test Python Bindings
   # ========================================
@@ -15,6 +32,7 @@ jobs:
     name: Python Build & Test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.8', '3.9', '3.10', '3.11']
@@ -58,12 +76,14 @@ jobs:
         ./scripts/build_python.sh
     
     - name: Run tests
+      env:
+        GEOM_REQUIRE_OCCT: "1"
       run: |
         chmod +x scripts/run_tests.sh
         ./scripts/run_tests.sh
     
     - name: Upload Python artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: python-${{ matrix.os }}-${{ matrix.python-version }}
         path: build/python/geom_core_py.*
@@ -78,12 +98,20 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+
+    - name: Install Closure compiler Java runtime
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
     
     - name: Set up Emscripten
       uses: mymindstorm/setup-emsdk@v12
       with:
-        version: 'latest'
-        actions-cache-folder: 'emsdk-cache'
+        version: '6.0.10'
+        # setup-emsdk v12 makes a competing cache reservation fatal. Avoid its
+        # shared cache so provisioning cannot mask the actual WASM build result.
+        no-cache: true
     
     - name: Verify Emscripten
       run: |
@@ -94,12 +122,23 @@ jobs:
       run: |
         chmod +x scripts/build_wasm.sh
         ./scripts/build_wasm.sh
+
+    - name: Verify native CAD capability and STL contracts
+      run: bash scripts/test_cad_contract.sh
+
+    - name: Verify real threaded WASM geometry
+      run: node tests/wasm/runtime.cjs
     
     - name: Upload WASM artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wasm-dist
         path: dist/
+
+    - name: Verify WASM without SharedArrayBuffer
+      run: |
+        ./scripts/build_wasm.sh --no-threads
+        node tests/wasm/runtime.cjs
     
     - name: List artifacts
       run: |
@@ -128,16 +167,23 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
     
-    - name: Build source distribution
+    - name: Build source and wheel distributions
       run: |
-        python -m build --sdist
+        python -m build
     
+    - name: Verify installed wheel outside the source tree
+      run: |
+        python -m venv /tmp/geom-wheel-check
+        /tmp/geom-wheel-check/bin/pip install dist/*.whl
+        cd /tmp
+        /tmp/geom-wheel-check/bin/python -c 'import geom_core_py; assert geom_core_py.Analyzer().get_vertex_count() == 0'
+
     - name: Check distribution
       run: |
         twine check dist/*
     
     - name: Upload package artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: python-package
         path: dist/
@@ -160,20 +206,16 @@ jobs:
     
     - name: Install linting tools
       run: |
-        pip install black flake8 mypy
+        pip install black==24.10.0 flake8==7.1.1
     
     - name: Check Python formatting (Black)
       run: |
-        black --check tests/*.py bindings/python/*.cpp || true
+        black --check --target-version py38 tests/
     
-    - name: Lint Python code (Flake8)
+    - name: Python syntax and undefined-name checks (Flake8)
       run: |
-        flake8 tests/ --max-line-length=120 --extend-ignore=E501 || true
+        flake8 tests/ --select E9,F63,F7,F82
     
-    - name: Check C++ formatting
-      run: |
-        echo "C++ formatting check (clang-format would go here)"
-        find src include -name "*.cpp" -o -name "*.hpp" | head -5
 
   # ========================================
   # Job 5: Documentation Check

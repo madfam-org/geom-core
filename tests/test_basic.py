@@ -8,7 +8,7 @@ import sys
 import os
 
 # Add the build directory to Python path if not already set
-build_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'build', 'python')
+build_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "build", "python")
 if os.path.exists(build_dir) and build_dir not in sys.path:
     sys.path.insert(0, build_dir)
 
@@ -51,16 +51,14 @@ def test_mock_volume():
     expected = 4.18879020478639
     tolerance = 0.0001
 
-    assert abs(volume - expected) < tolerance, \
-        f"Expected ~{expected}, got {volume}"
+    assert abs(volume - expected) < tolerance, f"Expected ~{expected}, got {volume}"
     print(f"  ✓ get_mock_volume({radius}) = {volume:.6f}")
 
     # Test with radius = 2.0
     radius = 2.0
     volume = analyzer.get_mock_volume(radius)
     expected = 33.5103216382911
-    assert abs(volume - expected) < tolerance, \
-        f"Expected ~{expected}, got {volume}"
+    assert abs(volume - expected) < tolerance, f"Expected ~{expected}, got {volume}"
     print(f"  ✓ get_mock_volume({radius}) = {volume:.6f}")
 
 
@@ -86,6 +84,7 @@ def main():
     except Exception as e:
         print(f"\n✗ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

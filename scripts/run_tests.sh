@@ -18,6 +18,7 @@ export PYTHONPATH="${PROJECT_ROOT}/build/python:${PYTHONPATH}"
 echo ""
 echo "Running test_mesh.py..."
 python3 tests/test_mesh.py
+python3 tests/test_stl_admission.py
 
 echo ""
 echo "Running test_printability.py..."
@@ -30,8 +31,9 @@ python3 tests/test_auto_orient.py
 echo ""
 echo "Running test_step.py..."
 python3 tests/test_step.py
+python3 tests/test_step_geometry.py
 
 echo ""
 echo "========================================"
-echo "All tests passed!"
+echo "Native test scripts completed; skipped capability checks remain unverified."
 echo "========================================"
