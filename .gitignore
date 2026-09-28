@@ -1,4 +1,5 @@
 # Build directories
+node_modules/
 build/
 cmake-build-*/
 out/

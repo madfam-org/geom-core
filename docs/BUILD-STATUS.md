@@ -23,3 +23,10 @@ these compiler failures with placeholder geometry or skipped build checks.
 Python formatting and critical syntax/undefined-name checks fail CI on errors.
 The previous C++ formatting placeholder was not a check; C++ compilation is
 validated by the actual build jobs.
+
+JavaScript dependencies are installed from `pnpm-lock.yaml` with pnpm 9.15.0;
+the incomplete checked-in `node_modules` tree is removed. CI checks TypeScript
+and builds the ESM, CommonJS and declaration outputs from a clean install.
+There are currently no authored JavaScript test files, so `pnpm test` correctly
+fails with "No test files found". A successful TypeScript build is not a runtime
+CAD test, and that missing coverage remains a release limitation.
