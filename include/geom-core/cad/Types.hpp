@@ -119,7 +119,7 @@ struct TessellateOptions {
 template<typename T>
 struct Result {
     bool success = false;
-    T value;
+    T value{};
     std::string errorCode;
     std::string errorMessage;
     
@@ -128,7 +128,7 @@ struct Result {
     size_t memoryUsedBytes = 0;
     bool wasCached = false;
     
-    static Result<T> ok(T&& val) {
+    static Result<T> ok(T val) {
         Result<T> r;
         r.success = true;
         r.value = std::move(val);

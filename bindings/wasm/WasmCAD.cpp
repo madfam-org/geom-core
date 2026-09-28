@@ -14,6 +14,7 @@
 
 using namespace emscripten;
 using namespace madfam::geom::cad;
+using madfam::geom::Vector3;
 
 // =============================================================================
 // JavaScript Value Converters
@@ -115,18 +116,17 @@ val resultDoubleToJS(const Result<double>& r) {
     return obj;
 }
 
-// Convert MeshData to JS with zero-copy typed arrays
+// Return JS-owned arrays: the operation result is destroyed after this call.
 val meshDataToJS(const MeshData& mesh) {
     val obj = val::object();
     
-    // Use typed_memory_view for zero-copy access from JS
-    // Note: The underlying memory must remain valid!
-    obj.set("positions", val(typed_memory_view(mesh.positions.size(), mesh.positions.data())));
-    obj.set("normals", val(typed_memory_view(mesh.normals.size(), mesh.normals.data())));
-    obj.set("indices", val(typed_memory_view(mesh.indices.size(), mesh.indices.data())));
+    // Copy from the temporary view before the C++ result releases its vectors.
+    obj.set("positions", val::global("Float32Array").new_(val(typed_memory_view(mesh.positions.size(), mesh.positions.data()))));
+    obj.set("normals", val::global("Float32Array").new_(val(typed_memory_view(mesh.normals.size(), mesh.normals.data()))));
+    obj.set("indices", val::global("Uint32Array").new_(val(typed_memory_view(mesh.indices.size(), mesh.indices.data()))));
     
     if (!mesh.uvs.empty()) {
-        obj.set("uvs", val(typed_memory_view(mesh.uvs.size(), mesh.uvs.data())));
+        obj.set("uvs", val::global("Float32Array").new_(val(typed_memory_view(mesh.uvs.size(), mesh.uvs.data()))));
     }
     
     obj.set("vertexCount", mesh.vertexCount());

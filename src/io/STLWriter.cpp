@@ -7,6 +7,10 @@
 #include <fstream>
 #include <cstring>
 #include <cmath>
+#include <sstream>
+#include <limits>
+#include <algorithm>
+#include <iomanip>
 
 namespace madfam::geom::io {
 
@@ -14,30 +18,32 @@ using namespace madfam::geom::cad;
 
 namespace {
 
+bool validMesh(const MeshData& mesh) {
+    return mesh.positions.size() % 3 == 0 && mesh.indices.size() % 3 == 0 &&
+        mesh.triangleCount() <= (std::numeric_limits<size_t>::max() - 84) / 50 &&
+        mesh.triangleCount() <= std::numeric_limits<uint32_t>::max() &&
+        std::all_of(mesh.positions.begin(), mesh.positions.end(), [](float n) { return std::isfinite(n); }) &&
+        std::all_of(mesh.indices.begin(), mesh.indices.end(), [&](uint32_t i) { return i < mesh.vertexCount(); });
+}
+
 // Compute face normal from triangle vertices
 void computeFaceNormal(const float* v0, const float* v1, const float* v2,
                         float& nx, float& ny, float& nz) {
-    // Edge vectors
-    float e1x = v1[0] - v0[0];
-    float e1y = v1[1] - v0[1];
-    float e1z = v1[2] - v0[2];
-
-    float e2x = v2[0] - v0[0];
-    float e2y = v2[1] - v0[1];
-    float e2z = v2[2] - v0[2];
-
-    // Cross product
-    nx = e1y * e2z - e1z * e2y;
-    ny = e1z * e2x - e1x * e2z;
-    nz = e1x * e2y - e1y * e2x;
-
-    // Normalize
-    float len = std::sqrt(nx * nx + ny * ny + nz * nz);
-    if (len > 1e-10f) {
-        nx /= len;
-        ny /= len;
-        nz /= len;
-    }
+    // Promote before subtraction: finite float coordinates can overflow float
+    // edge products. Double covers the complete float input range.
+    const double e1x = double(v1[0]) - v0[0];
+    const double e1y = double(v1[1]) - v0[1];
+    const double e1z = double(v1[2]) - v0[2];
+    const double e2x = double(v2[0]) - v0[0];
+    const double e2y = double(v2[1]) - v0[1];
+    const double e2z = double(v2[2]) - v0[2];
+    const double x = e1y * e2z - e1z * e2y;
+    const double y = e1z * e2x - e1x * e2z;
+    const double z = e1x * e2y - e1y * e2x;
+    const double length = std::hypot(x, y, z);
+    nx = length > 0 ? float(x / length) : 0;
+    ny = length > 0 ? float(y / length) : 0;
+    nz = length > 0 ? float(z / length) : 0;
 }
 
 }  // namespace
@@ -46,10 +52,11 @@ void computeFaceNormal(const float* v0, const float* v1, const float* v2,
  * @brief Write mesh to binary STL file
  */
 Result<bool> writeSTL(const MeshData& mesh, const std::string& filepath, bool binary) {
+    if (!validMesh(mesh)) return Result<bool>::error("INVALID_MESH", "Invalid triangle data");
     if (binary) {
         std::ofstream file(filepath, std::ios::binary);
         if (!file.is_open()) {
-            return Result<bool>::fail("IO_ERROR", "Failed to create file: " + filepath);
+            return Result<bool>::error("IO_ERROR", "Failed to create file: " + filepath);
         }
 
         // Header (80 bytes)
@@ -58,18 +65,18 @@ Result<bool> writeSTL(const MeshData& mesh, const std::string& filepath, bool bi
         file.write(header, 80);
 
         // Triangle count
-        uint32_t numTriangles = mesh.triangleCount;
+        uint32_t numTriangles = mesh.triangleCount();
         file.write(reinterpret_cast<const char*>(&numTriangles), 4);
 
         // Write triangles
-        for (uint32_t i = 0; i < mesh.triangleCount; ++i) {
+        for (size_t i = 0; i < mesh.triangleCount(); ++i) {
             uint32_t i0 = mesh.indices[i * 3 + 0];
             uint32_t i1 = mesh.indices[i * 3 + 1];
             uint32_t i2 = mesh.indices[i * 3 + 2];
 
-            const float* v0 = &mesh.positions[i0 * 3];
-            const float* v1 = &mesh.positions[i1 * 3];
-            const float* v2 = &mesh.positions[i2 * 3];
+            const float* v0 = &mesh.positions[size_t(i0) * 3];
+            const float* v1 = &mesh.positions[size_t(i1) * 3];
+            const float* v2 = &mesh.positions[size_t(i2) * 3];
 
             // Compute face normal
             float nx, ny, nz;
@@ -90,24 +97,27 @@ Result<bool> writeSTL(const MeshData& mesh, const std::string& filepath, bool bi
             file.write(reinterpret_cast<const char*>(&attr), 2);
         }
 
+        file.close();
+        if (!file) return Result<bool>::error("IO_ERROR", "Failed to write STL");
         return Result<bool>::ok(true);
     } else {
         // ASCII STL
         std::ofstream file(filepath);
         if (!file.is_open()) {
-            return Result<bool>::fail("IO_ERROR", "Failed to create file: " + filepath);
+            return Result<bool>::error("IO_ERROR", "Failed to create file: " + filepath);
         }
 
+        file << std::setprecision(std::numeric_limits<float>::max_digits10);
         file << "solid geom-core\n";
 
-        for (uint32_t i = 0; i < mesh.triangleCount; ++i) {
+        for (size_t i = 0; i < mesh.triangleCount(); ++i) {
             uint32_t i0 = mesh.indices[i * 3 + 0];
             uint32_t i1 = mesh.indices[i * 3 + 1];
             uint32_t i2 = mesh.indices[i * 3 + 2];
 
-            const float* v0 = &mesh.positions[i0 * 3];
-            const float* v1 = &mesh.positions[i1 * 3];
-            const float* v2 = &mesh.positions[i2 * 3];
+            const float* v0 = &mesh.positions[size_t(i0) * 3];
+            const float* v1 = &mesh.positions[size_t(i1) * 3];
+            const float* v2 = &mesh.positions[size_t(i2) * 3];
 
             float nx, ny, nz;
             computeFaceNormal(v0, v1, v2, nx, ny, nz);
@@ -123,6 +133,8 @@ Result<bool> writeSTL(const MeshData& mesh, const std::string& filepath, bool bi
 
         file << "endsolid geom-core\n";
 
+        file.close();
+        if (!file) return Result<bool>::error("IO_ERROR", "Failed to write STL");
         return Result<bool>::ok(true);
     }
 }
@@ -131,11 +143,12 @@ Result<bool> writeSTL(const MeshData& mesh, const std::string& filepath, bool bi
  * @brief Write mesh to STL in memory buffer
  */
 Result<std::vector<uint8_t>> writeSTLToMemory(const MeshData& mesh, bool binary) {
+    if (!validMesh(mesh)) return Result<std::vector<uint8_t>>::error("INVALID_MESH", "Invalid triangle data");
     std::vector<uint8_t> buffer;
 
     if (binary) {
         // Calculate size: 80 header + 4 count + 50 per triangle
-        size_t size = 84 + mesh.triangleCount * 50;
+        size_t size = 84 + mesh.triangleCount() * 50;
         buffer.resize(size);
 
         uint8_t* ptr = buffer.data();
@@ -146,18 +159,19 @@ Result<std::vector<uint8_t>> writeSTLToMemory(const MeshData& mesh, bool binary)
         ptr += 80;
 
         // Triangle count
-        memcpy(ptr, &mesh.triangleCount, 4);
+        const uint32_t triangleCount = static_cast<uint32_t>(mesh.triangleCount());
+        memcpy(ptr, &triangleCount, 4);
         ptr += 4;
 
         // Triangles
-        for (uint32_t i = 0; i < mesh.triangleCount; ++i) {
+        for (size_t i = 0; i < mesh.triangleCount(); ++i) {
             uint32_t i0 = mesh.indices[i * 3 + 0];
             uint32_t i1 = mesh.indices[i * 3 + 1];
             uint32_t i2 = mesh.indices[i * 3 + 2];
 
-            const float* v0 = &mesh.positions[i0 * 3];
-            const float* v1 = &mesh.positions[i1 * 3];
-            const float* v2 = &mesh.positions[i2 * 3];
+            const float* v0 = &mesh.positions[size_t(i0) * 3];
+            const float* v1 = &mesh.positions[size_t(i1) * 3];
+            const float* v2 = &mesh.positions[size_t(i2) * 3];
 
             float nx, ny, nz;
             computeFaceNormal(v0, v1, v2, nx, ny, nz);
@@ -176,16 +190,17 @@ Result<std::vector<uint8_t>> writeSTLToMemory(const MeshData& mesh, bool binary)
     } else {
         // ASCII - use string stream
         std::ostringstream ss;
+        ss << std::setprecision(std::numeric_limits<float>::max_digits10);
         ss << "solid geom-core\n";
 
-        for (uint32_t i = 0; i < mesh.triangleCount; ++i) {
+        for (size_t i = 0; i < mesh.triangleCount(); ++i) {
             uint32_t i0 = mesh.indices[i * 3 + 0];
             uint32_t i1 = mesh.indices[i * 3 + 1];
             uint32_t i2 = mesh.indices[i * 3 + 2];
 
-            const float* v0 = &mesh.positions[i0 * 3];
-            const float* v1 = &mesh.positions[i1 * 3];
-            const float* v2 = &mesh.positions[i2 * 3];
+            const float* v0 = &mesh.positions[size_t(i0) * 3];
+            const float* v1 = &mesh.positions[size_t(i1) * 3];
+            const float* v2 = &mesh.positions[size_t(i2) * 3];
 
             float nx, ny, nz;
             computeFaceNormal(v0, v1, v2, nx, ny, nz);

@@ -18,11 +18,20 @@ parallel compiler jobs; `CMAKE_BUILD_PARALLEL_LEVEL` overrides that budget.
 CAD authoring is a separate, experimental implementation. Native compilation
 can be requested with `-DBUILD_NATIVE_CAD=ON`; WASM still builds the CAD sources
 and must pass its own CI lane. Neither is validated by the Python analysis
-suite. At the current baseline, incompatible OCCT wrapper interfaces, incomplete
-shape implementations and inconsistent binding interfaces block that lane.
-The split-module target also names binding source files absent from the tree. Do not
-publish or deploy a new CAD/WASM package based on Python-only success, or mask
-these compiler failures with placeholder geometry or skipped build checks.
+suite. The default kernel-free WASM build now compiles the CAD interfaces but
+returns `OCCT_UNAVAILABLE` for primitives, matching the explicit failure behavior
+of booleans and features. It never reports a bounding-box placeholder as a solid.
+Local threaded WASM execution verifies a real STL cube's 1,000 mm³ volume,
+watertightness and 10 mm dimensions, plus malformed-input rejection. CI repeats
+these checks and also builds/runs without threads. Closure requires Java 21.
+Mesh arrays returned from temporary CAD operation results are copied into
+JavaScript-owned arrays; they cannot outlive freed C++ vectors.
+
+This does not validate CAD authoring with OCCT in WASM. The optional OCCT and
+split-module targets still reference absent source files and require separate
+implementation and verification. Keep the package unreleased until its declared
+capabilities and target-specific release gates are satisfied; Python analysis or
+kernel-free WASM success is not evidence of browser CAD boolean support.
 
 Python formatting and critical syntax/undefined-name checks fail CI on errors.
 The previous C++ formatting placeholder was not a check; C++ compilation is

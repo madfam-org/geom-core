@@ -98,6 +98,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+
+    - name: Install Closure compiler Java runtime
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
     
     - name: Set up Emscripten
       uses: mymindstorm/setup-emsdk@v12
@@ -116,12 +122,23 @@ jobs:
       run: |
         chmod +x scripts/build_wasm.sh
         ./scripts/build_wasm.sh
+
+    - name: Verify native CAD capability and STL contracts
+      run: bash scripts/test_cad_contract.sh
+
+    - name: Verify real threaded WASM geometry
+      run: node tests/wasm/runtime.cjs
     
     - name: Upload WASM artifacts
       uses: actions/upload-artifact@v4
       with:
         name: wasm-dist
         path: dist/
+
+    - name: Verify WASM without SharedArrayBuffer
+      run: |
+        ./scripts/build_wasm.sh --no-threads
+        node tests/wasm/runtime.cjs
     
     - name: List artifacts
       run: |

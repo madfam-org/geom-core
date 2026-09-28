@@ -202,15 +202,17 @@ if(BUILD_WASM_BINDINGS)
     )
 
     # Environment flags
-    list(APPEND WASM_BASE_FLAGS "-s ENVIRONMENT=web,worker")
+    list(APPEND WASM_BASE_FLAGS "-s ENVIRONMENT=web,worker,node")
 
     # Threading support (requires SharedArrayBuffer)
     if(BUILD_WASM_THREADS)
         list(APPEND WASM_BASE_FLAGS
             "-s USE_PTHREADS=1"
-            "-s PTHREAD_POOL_SIZE=navigator.hardwareConcurrency||4"
-            "-s PROXY_TO_PTHREAD=1"  # Keep main thread responsive
+            "-s PTHREAD_POOL_SIZE=4"
         )
+        # This is an embind library without main(), not an application to proxy
+        # to a pthread. Every object must agree with the shared-memory linker.
+        add_compile_options(-pthread)
     endif()
 
     # SIMD support (90%+ browser coverage)
