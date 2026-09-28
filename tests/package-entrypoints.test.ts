@@ -15,3 +15,15 @@ test('the CommonJS entry remains usable by require', () => {
   ], { encoding: 'utf8' });
   expect(output.trim()).toBe('0.1.0 function');
 });
+
+test('kernel errors remain structured without the Node process global', () => {
+  const output = execFileSync(process.execPath, ['--input-type=module', '-e', `
+    import { GeometryEngine } from "@madfam/geom-core";
+    const engine = new GeometryEngine({});
+    delete globalThis.process;
+    console.error = () => {};
+    const result = engine.makeBox();
+    console.log(result.success, !!result.error);
+  `], { encoding: 'utf8' });
+  expect(output.trim()).toBe('false true');
+});

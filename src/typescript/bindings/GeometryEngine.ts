@@ -85,7 +85,11 @@ interface Logger {
 
 function createLogger(module: string): Logger {
   const log = (level: LogLevel, msg: string, ...args: unknown[]) => {
-    if (process.env.NODE_ENV !== "production" || level === "error") {
+    if (
+      typeof process === "undefined" ||
+      process.env.NODE_ENV !== "production" ||
+      level === "error"
+    ) {
       console[level](`[${module}]`, msg, ...args);
     }
   };
