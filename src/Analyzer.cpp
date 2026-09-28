@@ -19,6 +19,7 @@ Analyzer::~Analyzer() = default;
 // ========================================
 
 bool Analyzer::loadSTL(const std::string& filepath) {
+    spatialTree.reset();
     if (!mesh) {
         mesh = std::make_unique<Mesh>();
     }
@@ -26,6 +27,7 @@ bool Analyzer::loadSTL(const std::string& filepath) {
 }
 
 bool Analyzer::loadSTLFromBytes(const std::string& data) {
+    spatialTree.reset();
     if (!mesh) {
         mesh = std::make_unique<Mesh>();
     }
@@ -35,6 +37,8 @@ bool Analyzer::loadSTLFromBytes(const std::string& data) {
 bool Analyzer::loadStep(const std::string& filepath,
                        double linearDeflection,
                        double angularDeflection) {
+    spatialTree.reset();
+    if (mesh) mesh->clear();
 #ifdef GC_USE_OCCT
     if (!mesh) {
         mesh = std::make_unique<Mesh>();

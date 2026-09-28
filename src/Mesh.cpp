@@ -7,10 +7,12 @@
 #include <cstring>
 #include <cstdint>
 #include <iostream>
+#include <cmath>
 
 namespace madfam::geom {
 
 bool Mesh::loadFromSTL(const std::string& filepath) {
+    clear();
     // Read entire file into memory
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
@@ -20,6 +22,7 @@ bool Mesh::loadFromSTL(const std::string& filepath) {
 
     // Get file size and read into buffer
     std::streamsize size = file.tellg();
+    if (size < 84) return false;
     file.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);
@@ -39,7 +42,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     clear();
 
     // Validate minimum size (80-byte header + 4-byte count)
-    if (size < 84) {
+    if (!buffer || size < 84) {
         std::cerr << "Error: STL buffer too small (< 84 bytes)" << std::endl;
         return false;
     }
@@ -52,11 +55,11 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     std::memcpy(&triangleCount, buffer + offset, 4);
     offset += 4;
 
-    // Validate buffer size
-    size_t expectedSize = 84 + (triangleCount * 50); // header + count + (triangles * 50 bytes each)
-    if (size < expectedSize) {
-        std::cerr << "Error: STL buffer size mismatch. Expected at least " << expectedSize
-                  << " bytes, got " << size << std::endl;
+    // Divide the available byte count before allocating. Multiplying the
+    // uint32 count by 50 first can wrap and admit a tiny malicious buffer.
+    if (triangleCount > (size - 84) / 50 ||
+        triangleCount > static_cast<size_t>(std::numeric_limits<int>::max()) / 3) {
+        std::cerr << "Error: STL triangle count exceeds the buffer or index capacity" << std::endl;
         return false;
     }
 
@@ -85,6 +88,12 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
             std::memcpy(coords, buffer + offset, 12);
             offset += 12;
 
+            if (!std::isfinite(coords[0]) || !std::isfinite(coords[1]) ||
+                !std::isfinite(coords[2])) {
+                clear();
+                std::cerr << "Error: STL contains non-finite coordinates" << std::endl;
+                return false;
+            }
             Vector3 vertex(coords[0], coords[1], coords[2]);
 
             // Check if vertex already exists in map
