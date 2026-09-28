@@ -128,10 +128,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
     
-    - name: Build source distribution
+    - name: Build source and wheel distributions
       run: |
-        python -m build --sdist
+        python -m build
     
+    - name: Verify installed wheel outside the source tree
+      run: |
+        python -m venv /tmp/geom-wheel-check
+        /tmp/geom-wheel-check/bin/pip install dist/*.whl
+        cd /tmp
+        /tmp/geom-wheel-check/bin/python -c 'import geom_core_py; assert geom_core_py.Analyzer().get_vertex_count() == 0'
+
     - name: Check distribution
       run: |
         twine check dist/*

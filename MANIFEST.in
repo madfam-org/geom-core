@@ -1,0 +1,6 @@
+include CMakeLists.txt
+include LICENSE
+recursive-include include *.hpp *.h
+recursive-include src *.cpp *.hpp *.h
+recursive-include bindings *.cpp
+recursive-include scripts *.sh

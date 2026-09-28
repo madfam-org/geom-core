@@ -49,6 +49,7 @@ class CMakeBuild(build_ext):
             f'-DPYTHON_EXECUTABLE={sys.executable}',
             '-DBUILD_PYTHON_BINDINGS=ON',
             '-DBUILD_WASM_BINDINGS=OFF',
+            '-DBUILD_SHARED_LIBS=OFF',
         ]
 
         # Configuration (Release by default)
@@ -66,9 +67,9 @@ class CMakeBuild(build_ext):
 
         # Add parallel build flag
         if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
-            # Use all available cores
-            import multiprocessing
-            build_args += ['--', f'-j{multiprocessing.cpu_count()}']
+            # Bound packaging resource use; CI may explicitly raise the budget.
+            parallel = os.environ.get('CMAKE_BUILD_PARALLEL_LEVEL', '2')
+            build_args += ['--parallel', parallel]
         elif sys.platform.startswith('win'):
             build_args += ['--', '/m']
 
@@ -108,7 +109,7 @@ class CMakeBuild(build_ext):
             shutil.copy2(str(built_lib), str(dest_dir))
             print(f"Copied {built_lib} to {dest_dir}")
         else:
-            print(f"Warning: Could not find built library in {python_dir}")
+            raise RuntimeError(f"Could not find built extension in {python_dir}")
 
 
 # Read the README for long description

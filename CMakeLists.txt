@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build Options
+option(BUILD_SHARED_LIBS "Build a shared native analysis library" ON)
 option(BUILD_NATIVE_CAD "Build the experimental native CAD authoring sources" OFF)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings using pybind11" ON)
 option(BUILD_WASM_BINDINGS "Build WebAssembly bindings" OFF)
@@ -122,7 +123,7 @@ endif()
 if(NOT EMSCRIPTEN)
     # The Python Analyzer exposes mesh analysis only. CAD authoring is built
     # by the separate WASM target or explicit experimental native opt-in.
-    add_library(geom_core_lib SHARED
+    add_library(geom_core_lib
         ${CORE_SOURCES}
         ${GPU_SOURCES}
     )
@@ -168,6 +169,7 @@ if(NOT EMSCRIPTEN)
     endif()
 
     set_target_properties(geom_core_lib PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME "geom_core"
         VERSION ${PROJECT_VERSION}
         SOVERSION 2
