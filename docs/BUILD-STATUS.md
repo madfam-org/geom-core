@@ -15,8 +15,9 @@ parallel compiler jobs; `CMAKE_BUILD_PARALLEL_LEVEL` overrides that budget.
 CAD authoring is a separate, experimental implementation. Native compilation
 can be requested with `-DBUILD_NATIVE_CAD=ON`; WASM still builds the CAD sources
 and must pass its own CI lane. Neither is validated by the Python analysis
-suite. At the current baseline, missing OCCT wrappers, incomplete shape
-implementations and inconsistent binding interfaces block that lane. Do not
+suite. At the current baseline, incompatible OCCT wrapper interfaces, incomplete
+shape implementations and inconsistent binding interfaces block that lane.
+The split-module target also names binding source files absent from the tree. Do not
 publish or deploy a new CAD/WASM package based on Python-only success, or mask
 these compiler failures with placeholder geometry or skipped build checks.
 

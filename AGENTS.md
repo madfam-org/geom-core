@@ -60,7 +60,9 @@ Regenerate or repair these files with
 
 ## Overview
 
-**Status**: 🟢 Production Ready (All 8 Milestones Complete)  
+**Status**: Native analysis and package loading are under verification;
+CAD authoring and WASM remain experimental. See [build boundaries](docs/BUILD-STATUS.md).
+The imported milestone claims below are historical, not current release evidence.  
 **Purpose**: C++ geometry analysis engine with Python and WebAssembly bindings  
 **License**: Apache 2.0 (permissive, enterprise-friendly)  
 **Package**: `@madfam/geom-core` (npm), `geom-core` (PyPI)
