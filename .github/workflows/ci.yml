@@ -32,6 +32,7 @@ jobs:
     name: Python Build & Test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.8', '3.9', '3.10', '3.11']
@@ -101,8 +102,10 @@ jobs:
     - name: Set up Emscripten
       uses: mymindstorm/setup-emsdk@v12
       with:
-        version: 'latest'
-        actions-cache-folder: 'emsdk-cache'
+        version: '6.0.10'
+        # setup-emsdk v12 makes a competing cache reservation fatal. Avoid its
+        # shared cache so provisioning cannot mask the actual WASM build result.
+        no-cache: true
     
     - name: Verify Emscripten
       run: |
