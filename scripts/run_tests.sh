@@ -35,5 +35,5 @@ python3 tests/test_step_geometry.py
 
 echo ""
 echo "========================================"
-echo "All tests passed!"
+echo "Native test scripts completed; skipped capability checks remain unverified."
 echo "========================================"

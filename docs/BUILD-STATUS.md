@@ -4,7 +4,10 @@ The native Python `Analyzer` contains mesh loading, volume, watertightness,
 printability and orientation. Its CMake target uses the core analysis sources
 and the existing `PyBindEntry.cpp`. Build with `scripts/build_python.sh` and
 verify with `scripts/run_tests.sh`. STEP geometry additionally requires OCCT;
-a successful API smoke without OCCT does not verify STEP tessellation.
+a successful API smoke without OCCT does not verify STEP tessellation. Native
+CI sets `GEOM_REQUIRE_OCCT=1` and verifies a generated 10 mm STEP cube: it
+must be watertight, have 1,000 mm³ volume, and measure 10 mm on each axis.
+The module reports `has_occt`; a missing required capability fails CI.
 
 `python -m build` builds a source distribution and a wheel from that distribution.
 The wheel statically links the analysis library so it does not depend on a
