@@ -146,9 +146,17 @@ if(NOT EMSCRIPTEN)
         set(OCCT_LIBS
             TKernel TKMath TKBRep TKTopAlgo TKMesh TKPrim TKGeomAlgo
             TKG3d TKG2d TKGeomBase TKShHealing TKFillet TKOffset TKBool
-            TKBO TKFeat TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209 TKXSBase
-            TKSTL TKIGES TKXSBase
+            TKBO TKFeat TKXSBase
         )
+        # OCCT 7.8+ consolidated the data-exchange toolkits. Homebrew ships
+        # these names; older Linux distributions still ship the TKSTEP family.
+        find_library(GEOM_OCCT_MODERN_STEP NAMES TKDESTEP
+            HINTS ${OpenCASCADE_LIBRARY_DIR})
+        if(GEOM_OCCT_MODERN_STEP)
+            list(APPEND OCCT_LIBS TKDESTEP TKDESTL TKDEIGES)
+        else()
+            list(APPEND OCCT_LIBS TKSTEP TKSTEPBase TKSTEPAttr TKSTEP209 TKSTL TKIGES)
+        endif()
 
         foreach(lib ${OCCT_LIBS})
             find_library(${lib}_PATH NAMES ${lib}
