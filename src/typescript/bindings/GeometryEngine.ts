@@ -63,12 +63,12 @@ import type {
   MateConstraint,
   PatternParams,
   PatternResult,
-} from "./types";
+} from "./types.js";
 
 // Re-export types that may be used by consumers
-export type { MateType, PatternType } from "./types";
+export type { MateType, PatternType } from "./types.js";
 
-import { createHandleId, getShapeId } from "./types";
+import { createHandleId, getShapeId } from "./types.js";
 
 // =============================================================================
 // Logger

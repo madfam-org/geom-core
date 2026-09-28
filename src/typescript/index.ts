@@ -119,13 +119,13 @@ export type {
   WASMModule,
   OCCTShape,
   OCCTHandle,
-} from "./bindings/types";
+} from "./bindings/types.js";
 
 export {
   createHandleId,
   resetHandleIdCounter,
   getShapeId,
-} from "./bindings/types";
+} from "./bindings/types.js";
 
 // =============================================================================
 // Core Engine
@@ -134,7 +134,7 @@ export {
 export {
   GeometryEngine,
   createGeometryEngine,
-} from "./bindings/GeometryEngine";
+} from "./bindings/GeometryEngine.js";
 
 // =============================================================================
 // SDK
@@ -145,14 +145,14 @@ export type {
   RemoteJobStatus,
   SlowOperationCallback,
   MemoryPressureCallback,
-} from "./sdk/GeomCoreSDK";
+} from "./sdk/GeomCoreSDK.js";
 
 export {
   GeomCoreSDK,
   createGeomCoreSDK,
   createBrowserSDK,
   createPaidTierSDK,
-} from "./sdk/GeomCoreSDK";
+} from "./sdk/GeomCoreSDK.js";
 
 // =============================================================================
 // Version

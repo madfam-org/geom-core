@@ -27,6 +27,8 @@ validated by the actual build jobs.
 JavaScript dependencies are installed from `pnpm-lock.yaml` with pnpm 9.15.0;
 the incomplete checked-in `node_modules` tree is removed. CI checks TypeScript
 and builds the ESM, CommonJS and declaration outputs from a clean install.
-There are currently no authored JavaScript test files, so `pnpm test` correctly
-fails with "No test files found". A successful TypeScript build is not a runtime
-CAD test, and that missing coverage remains a release limitation.
+The package-entrypoint tests invoke real Node ESM and CommonJS consumers after
+the build. This catches unresolved extensionless imports and module-format
+metadata failures that TypeScript or Vitest's resolver can hide. These tests
+verify loading the SDK, not CAD operations; missing CAD runtime coverage remains
+a release limitation.

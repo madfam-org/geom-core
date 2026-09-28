@@ -7,9 +7,9 @@
   "types": "dist/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
-      "types": "./dist/types/index.d.ts"
+      "require": "./dist/cjs/index.js"
     },
     "./wasm": {
       "import": "./dist/wasm/geom-core.js",
@@ -25,7 +25,7 @@
   "scripts": {
     "build": "npm run build:ts && npm run build:wasm",
     "build:ts": "npm run build:esm && npm run build:cjs && npm run build:types",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node scripts/write-esm-package.cjs",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:types": "tsc -p tsconfig.types.json",
     "build:wasm": "./scripts/build_wasm.sh",
