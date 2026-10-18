@@ -7,6 +7,7 @@ This allows users to install via: pip install .
 """
 
 import os
+import re
 import sys
 import subprocess
 import shutil
@@ -64,6 +65,12 @@ class CMakeBuild(build_ext):
             cmake_args += [
                 '-DCMAKE_OSX_DEPLOYMENT_TARGET=10.14',
             ]
+            # Honour ARCHFLAGS (e.g. "-arch arm64 -arch x86_64") like
+            # setuptools does for C extensions: a universal2-tagged wheel must
+            # contain both slices, not just the build machine's.
+            archs = re.findall(r'-arch\s+(\S+)', os.environ.get('ARCHFLAGS', ''))
+            if archs:
+                cmake_args += [f'-DCMAKE_OSX_ARCHITECTURES={";".join(archs)}']
 
         cmake_args += [f'-DCMAKE_BUILD_TYPE={cfg}']
 

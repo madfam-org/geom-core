@@ -8,6 +8,7 @@ class FakeAnalyzer {
   _loadSTLFromBytes() { return this.next; }
   _loadSTL() { return this.next; }
   getLastError() { return this.error; }
+  _getBodyCount(mode: string) { return mode === 'edge' ? 2 : 1; }
 }
 
 const fakeFactory = async (options?: Record<string, unknown>) => ({ Analyzer: FakeAnalyzer, options });
@@ -34,6 +35,14 @@ describe('createLoader', () => {
     expect((thrown as GeomCoreSTLError).parserMessage).toBe('STL buffer too small (< 84 bytes)');
     expect((thrown as Error).message).toBe('geom-core could not read the STL: STL buffer too small (< 84 bytes)');
     expect(() => analyzer.loadSTL('/missing.stl')).toThrow(GeomCoreSTLError);
+  });
+
+  it('getBodyCount defaults to edge connectivity and rejects unknown modes', async () => {
+    const mod = await createLoader(fakeFactory)();
+    const analyzer = new mod.Analyzer();
+    expect(analyzer.getBodyCount()).toBe(2);
+    expect(analyzer.getBodyCount('vertex')).toBe(1);
+    expect(() => analyzer.getBodyCount('face' as 'edge')).toThrow(TypeError);
   });
 
   it('fails visibly when the module has no Analyzer', async () => {

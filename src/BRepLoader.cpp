@@ -29,8 +29,6 @@ bool loadStepFile(const std::string& filepath,
                   double linearDeflection,
                   double angularDeflection) {
     
-    std::cout << "Loading STEP file: " << filepath << std::endl;
-    std::cout << "Linear deflection: " << linearDeflection << " mm" << std::endl;
     
     // ========================================
     // Step 1: Read STEP file
@@ -43,7 +41,6 @@ bool loadStepFile(const std::string& filepath,
         return false;
     }
     
-    std::cout << "STEP file read successfully" << std::endl;
     
     // Transfer roots to internal data structure
     Standard_Integer nbRoots = reader.TransferRoots();
@@ -52,7 +49,6 @@ bool loadStepFile(const std::string& filepath,
         return false;
     }
     
-    std::cout << "Transferred " << nbRoots << " roots" << std::endl;
     
     // Get the resulting shape
     TopoDS_Shape shape = reader.OneShape();
@@ -64,7 +60,6 @@ bool loadStepFile(const std::string& filepath,
     // ========================================
     // Step 2: Tessellate the shape
     // ========================================
-    std::cout << "Tessellating shape..." << std::endl;
     
     BRepMesh_IncrementalMesh mesher(shape, linearDeflection, Standard_False, 
                                      angularDeflection, Standard_True);
@@ -74,7 +69,6 @@ bool loadStepFile(const std::string& filepath,
         return false;
     }
     
-    std::cout << "Tessellation complete" << std::endl;
     
     // ========================================
     // Step 3: Extract triangulation data
@@ -90,13 +84,11 @@ bool loadStepFile(const std::string& filepath,
     // We use a map to deduplicate vertices across faces
     std::map<Vector3, int> vertexMap;
     
-    int faceCount = 0;
     int triangleCount = 0;
     
     // Iterate over all faces in the shape
     for (TopExp_Explorer faceExp(shape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
         const TopoDS_Face& face = TopoDS::Face(faceExp.Current());
-        faceCount++;
         
         // Get the triangulation for this face
         TopLoc_Location loc;
@@ -171,9 +163,6 @@ bool loadStepFile(const std::string& filepath,
         }
     }
     
-    std::cout << "Extracted " << faceCount << " faces" << std::endl;
-    std::cout << "Generated " << vertices.size() << " vertices" << std::endl;
-    std::cout << "Generated " << triangles.size() << " triangles" << std::endl;
     
     if (triangles.empty()) {
         std::cerr << "Error: No triangles extracted from STEP file" << std::endl;
@@ -191,9 +180,6 @@ bool loadStepFile(const std::string& filepath,
     outMesh.setVertices(vertices);
     outMesh.setTriangles(triangles);
     
-    std::cout << "STEP file loaded successfully into mesh" << std::endl;
-    std::cout << "Final mesh: " << outMesh.getVertexCount() << " vertices, "
-              << outMesh.getTriangleCount() << " triangles" << std::endl;
     
     return true;
 }

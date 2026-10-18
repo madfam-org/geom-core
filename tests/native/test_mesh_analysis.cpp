@@ -226,6 +226,46 @@ std::string toSTL(const Soup& m) {
     return bytes;
 }
 
+// Two 10 mm boxes touching at the single corner (10, 10, 10).
+Soup cornerTouchingBoxes() {
+    Soup other = box();
+    for (auto& v : other.v) v = Vector3(v.x + 10, v.y + 10, v.z + 10);
+    return weld(concat(box(), other));
+}
+
+void testBodyConnectivity() {
+    using madfam::geom::BodyConnectivity;
+    const Mesh touching = toMesh(cornerTouchingBoxes());
+    check(touching.getVertexCount() == 15, "corner-touching boxes share exactly one vertex");
+    check(touching.bodyCount() == 2, "edge connectivity (default): corner-touching boxes are 2 bodies");
+    check(touching.bodyCount(BodyConnectivity::Edge) == 2, "explicit edge mode: 2 bodies");
+    check(touching.bodyCount(BodyConnectivity::Vertex) == 1, "vertex mode: corner-touching boxes are 1 body");
+    const MeshIntegrity verdict = madfam::geom::assessMeshIntegrity(touching);
+    check(verdict.bodyCount == 2, "integrity bodyCount uses edge connectivity");
+
+    const Mesh shared = toMesh(weld(concat(box(0), box(10))));  // share a whole face
+    check(shared.bodyCount(BodyConnectivity::Edge) == 1 && shared.bodyCount(BodyConnectivity::Vertex) == 1,
+          "boxes sharing a face are one body in both modes");
+    const Mesh apart = toMesh(concat(box(0), box(20)));
+    check(apart.bodyCount(BodyConnectivity::Vertex) == 2, "disjoint boxes: 2 bodies by vertex too");
+
+    Analyzer analyzer;
+    check(analyzer.loadSTLFromBytes(toSTL(cornerTouchingBoxes())), "corner-touching STL loads");
+    check(analyzer.getBodyCount() == 2 && analyzer.getBodyCount(BodyConnectivity::Vertex) == 1,
+          "Analyzer::getBodyCount modes");
+}
+
+void testSignedVolume() {
+    Soup flipped = box();
+    for (auto& t : flipped.f) std::swap(t.v1, t.v2);
+    Analyzer analyzer;
+    check(analyzer.loadSTLFromBytes(toSTL(flipped)), "inside-out box loads");
+    check(near(analyzer.getSignedVolume(), -1000.0), "signed volume is negative when inside out");
+    check(near(analyzer.getVolume(), 1000.0), "getVolume() stays absolute");
+    check(analyzer.assessIntegrity().inverted && near(analyzer.assessIntegrity().volume, -1000.0),
+          "assessIntegrity reports the signed volume");
+}
+
 void testBoundsAndLoadErrors() {
     Analyzer analyzer;
     const auto empty = analyzer.getBounds();
@@ -268,6 +308,8 @@ int main() {
     testScalars();
     testIntegrity();
     testBoundsAndLoadErrors();
+    testBodyConnectivity();
+    testSignedVolume();
     std::printf("%d/%d checks passed\n", checks - failures, checks);
     return failures == 0 ? 0 : 1;
 }

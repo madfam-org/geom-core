@@ -147,6 +147,7 @@ export interface MeshIntegrity {
   mergeTolerance: number | null;
   degenerateFaces: number;
   inverted: boolean;
+  /** Connected components of faces sharing an edge. */
   bodyCount: number;
   notes: string[];
   /** MeshIntegrity::summary(): one-line verdict naming the failure. */
@@ -181,7 +182,10 @@ export interface Analyzer {
   loadSTL(path: string): true;
   /** Parser message of the last failed load, "" after a successful one. */
   getLastError(): string;
+  /** Absolute volume; an inside-out solid is positive here (see getSignedVolume()). */
   getVolume(): number;
+  /** Signed volume: negative when the closed surface is inside out. */
+  getSignedVolume(): number;
   isWatertight(): boolean;
   getBoundingBox(): MeshBoundingBox;
   getVertexCount(): number;
@@ -207,7 +211,12 @@ export interface Analyzer {
   getSurfaceArea(): number;
   /** Volumetric centroid; origin when |volume| < 1e-9. */
   getCentroid(): Vec3;
-  getBodyCount(): number;
+  /**
+   * Connected bodies. 'edge' (default): faces sharing an edge, like
+   * trimesh split(); 'vertex': faces sharing any vertex (the 0.1.0 rule, like
+   * trimesh body_count). Two boxes touching at one corner: 2 vs 1.
+   */
+  getBodyCount(mode?: 'edge' | 'vertex'): number;
   /** scaleHint <= 0 derives the scale from the largest bounding-box dimension. */
   assessIntegrity(scaleHint: number): MeshIntegrity;
   buildSpatialIndex(): void;

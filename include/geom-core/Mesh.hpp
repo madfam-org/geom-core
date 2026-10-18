@@ -28,6 +28,17 @@ struct BoundingBox {
 };
 
 /**
+ * @brief Which faces count as connected when counting bodies
+ *
+ * Edge: faces sharing an edge (the default; matches
+ * len(trimesh.Trimesh.split(only_watertight=False))). Vertex: faces sharing
+ * any vertex (geom-core 0.1.0's rule; matches trimesh.Trimesh.body_count on
+ * meshes without unreferenced vertices). Two boxes touching at one corner are
+ * 2 bodies by edge and 1 by vertex.
+ */
+enum class BodyConnectivity { Edge, Vertex };
+
+/**
  * @brief Triangular mesh data structure
  *
  * Stores vertices and faces for efficient topology analysis.
@@ -121,10 +132,12 @@ public:
 
     /**
      * @brief Number of connected bodies
-     * @return Connected components of triangles that share a vertex
-     *         (unreferenced vertices are not counted); 0 when empty
+     * @param mode Edge (default): triangles sharing an edge are connected;
+     *        Vertex: triangles sharing any vertex are. See BodyConnectivity.
+     * @return Connected components of triangles (unreferenced vertices are
+     *         not counted); 0 when empty
      */
-    int bodyCount() const;
+    int bodyCount(BodyConnectivity mode = BodyConnectivity::Edge) const;
 
     /**
      * @brief Get the number of vertices in the mesh

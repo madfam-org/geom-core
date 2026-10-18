@@ -96,7 +96,9 @@ namespace madfam::geom {
 
         /**
          * @brief Calculate the volume of the loaded mesh
-         * @return Volume in cubic units (0.0 if no mesh loaded)
+         * @return Absolute volume in cubic units (0.0 if no mesh loaded); an
+         *         inside-out solid reports a positive value here, so use
+         *         getSignedVolume() or assessIntegrity().inverted to detect it
          */
         double getVolume() const;
 
@@ -136,8 +138,17 @@ namespace madfam::geom {
 
         /**
          * @brief Number of connected bodies in the loaded mesh, see Mesh::bodyCount()
+         * @param mode Edge (default) or Vertex connectivity, see BodyConnectivity
          */
-        int getBodyCount() const;
+        int getBodyCount(BodyConnectivity mode = BodyConnectivity::Edge) const;
+
+        /**
+         * @brief Signed volume of the loaded mesh, see Mesh::getSignedVolume()
+         *
+         * Negative for an inside-out (inward-wound) closed mesh. getVolume()
+         * is its absolute value and cannot tell an inverted solid apart.
+         */
+        double getSignedVolume() const;
 
         /**
          * @brief Watertight/manifold verdict with evidence for a mesh

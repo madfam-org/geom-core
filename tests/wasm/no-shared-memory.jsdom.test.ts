@@ -5,7 +5,7 @@
  * watched for shared allocations. The threaded entry must refuse up front
  * in the same realm instead of hanging in its pthread pool start-up.
  */
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import fixtures from './fixtures.cjs';
 
@@ -46,7 +46,8 @@ describe('a page without cross-origin isolation', () => {
 
   it('loads @madfam/geom-core/wasm through locateFile and analyses a mesh', async () => {
     const { default: createGeomCore } = await import('../../dist/wasm/index.js');
-    const wasmPath = fileURLToPath(new URL('../../dist/wasm/geom-core.wasm', import.meta.url));
+    // jsdom replaces the URL global, so build the path with node:path (Vitest's root is the repo).
+    const wasmPath = resolve(process.cwd(), 'dist/wasm/geom-core.wasm');
     const located: string[] = [];
     const mod = await createGeomCore({
       print: () => {},

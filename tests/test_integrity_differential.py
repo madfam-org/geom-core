@@ -178,10 +178,16 @@ def _judged_mesh(mesh, ref):
     return candidate
 
 
-def _body_count(mesh):
-    """Connected components of faces sharing a vertex (trimesh's body_count
-    needs scipy; this plain union-find is the independent oracle)."""
-    parent = list(range(len(mesh.vertices)))
+def _body_count(mesh, mode="edge"):
+    """Connected components of faces sharing an edge (mode="edge", like
+    trimesh split()) or any vertex (mode="vertex", like trimesh body_count).
+    trimesh's graph code needs scipy; this plain union-find is the
+    independent oracle."""
+    faces = [tuple(int(i) for i in f) for f in mesh.faces]
+    if mode == "edge":
+        parent = list(range(len(faces)))
+    else:
+        parent = list(range(len(mesh.vertices)))
 
     def root(i):
         while parent[i] != i:
@@ -189,12 +195,28 @@ def _body_count(mesh):
             i = parent[i]
         return i
 
-    for a, b, c in mesh.faces:
-        for other in (b, c):
-            ra, rb = root(a), root(other)
-            if ra != rb:
-                parent[rb] = ra
-    referenced = set(int(i) for i in np.unique(mesh.faces))
+    def union(a, b):
+        ra, rb = root(a), root(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    if mode == "edge":
+        first = {}
+        for index, face in enumerate(faces):
+            for k in range(3):
+                a, b = face[k], face[(k + 1) % 3]
+                if a == b:
+                    continue
+                key = (min(a, b), max(a, b))
+                if key in first:
+                    union(first[key], index)
+                else:
+                    first[key] = index
+        return len({root(i) for i in range(len(faces))})
+    for a, b, c in faces:
+        union(a, b)
+        union(a, c)
+    referenced = set(i for face in faces for i in face)
     return len({root(i) for i in referenced})
 
 
@@ -340,6 +362,7 @@ def compare(name, mesh, workdir, scale_hint=None):
     # Scalars on the loaded mesh against trimesh.
     assert _close(analyzer.get_surface_area(), float(loaded.area)), name
     assert analyzer.get_body_count() == _body_count(loaded), name
+    assert analyzer.get_body_count("vertex") == _body_count(loaded, "vertex"), name
     bbox = analyzer.get_bounding_box()
     assert np.allclose(
         [bbox.x, bbox.y, bbox.z], loaded.extents, rtol=1e-9, atol=1e-9

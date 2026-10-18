@@ -122,9 +122,6 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
         offset += 2;
     }
 
-    std::cout << "Loaded STL: " << vertices.size() << " vertices, "
-              << faces.size() << " triangles" << std::endl;
-
     return true;
 }
 
@@ -204,9 +201,36 @@ int findRoot(std::vector<int>& parent, int i) {
 }
 } // namespace
 
-int Mesh::bodyCount() const {
+int Mesh::bodyCount(BodyConnectivity mode) const {
     if (faces.empty()) {
         return 0;
+    }
+    if (mode == BodyConnectivity::Edge) {
+        // Union faces that share an undirected edge; edges with a repeated
+        // vertex (degenerate faces) connect nothing.
+        std::vector<int> parent(faces.size());
+        for (size_t i = 0; i < parent.size(); ++i) parent[i] = static_cast<int>(i);
+        std::map<std::pair<int, int>, int> firstFace;
+        for (size_t f = 0; f < faces.size(); ++f) {
+            const int ids[3] = {faces[f].v0, faces[f].v1, faces[f].v2};
+            for (int k = 0; k < 3; ++k) {
+                const int a = ids[k];
+                const int b = ids[(k + 1) % 3];
+                if (a == b) continue;
+                const auto key = std::make_pair(std::min(a, b), std::max(a, b));
+                const auto found = firstFace.emplace(key, static_cast<int>(f));
+                if (!found.second) {
+                    const int ra = findRoot(parent, found.first->second);
+                    const int rb = findRoot(parent, static_cast<int>(f));
+                    if (ra != rb) parent[rb] = ra;
+                }
+            }
+        }
+        int bodies = 0;
+        for (size_t f = 0; f < parent.size(); ++f) {
+            if (findRoot(parent, static_cast<int>(f)) == static_cast<int>(f)) ++bodies;
+        }
+        return bodies;
     }
     std::vector<int> parent(vertices.size());
     for (size_t i = 0; i < parent.size(); ++i) parent[i] = static_cast<int>(i);

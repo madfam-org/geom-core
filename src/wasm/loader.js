@@ -6,7 +6,8 @@
  * C++ loaders as _loadSTLFromBytes/_loadSTL, which return false and keep the
  * parser's message in getLastError(). This wrapper installs the public
  * loadSTLFromBytes/loadSTL, which throw GeomCoreSTLError instead, so a bad
- * STL can never be mistaken for an empty mesh. Throwing here, after the C++
+ * STL can never be mistaken for an empty mesh. It also gives getBodyCount()
+ * its optional mode argument (Embind functions take a fixed argument count). Throwing here, after the C++
  * call has returned, keeps the C++ side free of exceptions (no leaked
  * argument copies on unwind).
  */
@@ -35,9 +36,11 @@ export class GeomCoreThreadingError extends Error {
  * @typedef {{
  *   _loadSTLFromBytes(data: Uint8Array | string): boolean,
  *   _loadSTL(path: string): boolean,
+ *   _getBodyCount(mode: string): number,
  *   getLastError(): string,
  *   loadSTLFromBytes?: (data: Uint8Array | string) => true,
  *   loadSTL?: (path: string) => true,
+ *   getBodyCount?: (mode?: 'edge' | 'vertex') => number,
  * }} RawAnalyzer
  */
 
@@ -60,6 +63,13 @@ function wrapModule(raw) {
   proto.loadSTL = function loadSTL(path) {
     if (!this._loadSTL(path)) throw new GeomCoreSTLError(this.getLastError());
     return true;
+  };
+  /** @param {'edge' | 'vertex'} [mode] @returns {number} */
+  proto.getBodyCount = function getBodyCount(mode = 'edge') {
+    if (mode !== 'edge' && mode !== 'vertex') {
+      throw new TypeError(`getBodyCount mode must be 'edge' or 'vertex', got ${JSON.stringify(mode)}`);
+    }
+    return this._getBodyCount(mode);
   };
   return /** @type {import('./types').GeomCoreModule} */ (/** @type {unknown} */ (mod));
 }

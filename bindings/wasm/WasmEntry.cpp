@@ -110,6 +110,18 @@ val getBoundingBoxJS(const Analyzer& self) {
 }
 
 /**
+ * @brief Body count by connectivity mode; -1 for an unknown mode
+ *
+ * The package entry points wrap this as getBodyCount(mode = "edge"), which
+ * validates the mode, because Embind functions take a fixed argument count.
+ */
+int getBodyCountJS(const Analyzer& self, const std::string& mode) {
+    if (mode == "edge") return self.getBodyCount(BodyConnectivity::Edge);
+    if (mode == "vertex") return self.getBodyCount(BodyConnectivity::Vertex);
+    return -1;
+}
+
+/**
  * @brief Mesh integrity verdict as a plain JS object
  *
  * scaleHint <= 0 (or 0) derives the scale from the largest bounding-box
@@ -180,7 +192,8 @@ EMSCRIPTEN_BINDINGS(geom_core_module) {
         .function("getTriangleCount", &Analyzer::getTriangleCount)
         .function("getSurfaceArea", &Analyzer::getSurfaceArea)
         .function("getCentroid", &Analyzer::getCentroid)
-        .function("getBodyCount", &Analyzer::getBodyCount)
+        .function("_getBodyCount", &getBodyCountJS)
+        .function("getSignedVolume", &Analyzer::getSignedVolume)
         .function("assessIntegrity", &assessIntegrityJS)
         .function("buildSpatialIndex", &Analyzer::buildSpatialIndex)
         .function("getPrintabilityReport", &Analyzer::getPrintabilityReport)

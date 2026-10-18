@@ -151,6 +151,33 @@ describe('malformed STLs throw GeomCoreSTLError with the parser message', () => 
   });
 });
 
+describe('body count connectivity and signed volume (0.2.0)', () => {
+  // Two 10 mm boxes touching at the single corner (10, 10, 10).
+  const corner = { name: 'corner-touching boxes', positions: [] as number[] };
+  const boxA = MESH_FIXTURES[3].positions.map((v, i) => (i % 3 === 0 ? v + 5 : i % 3 === 1 ? v + 10 : v)); // 20x20x30 at origin
+  corner.positions = [...boxA, ...boxA.map((v, i) => v + [20, 20, 30][i % 3])];
+
+  it('edge connectivity is the default; vertex joins the shared corner', () => {
+    withAnalyzer(toBinarySTL(corner), (a) => {
+      expect(a.getVertexCount()).toBe(15);
+      expect(a.getBodyCount()).toBe(2);
+      expect(a.getBodyCount('edge')).toBe(2);
+      expect(a.getBodyCount('vertex')).toBe(1);
+      expect(a.assessIntegrity(0).bodyCount).toBe(2);
+      expect(() => a.getBodyCount('face' as 'edge')).toThrow(TypeError);
+    });
+  });
+
+  it('getSignedVolume() is negative for the inside-out box; getVolume() stays absolute', () => {
+    const inverted = MESH_FIXTURES.find((f) => f.name.startsWith('inside-out'))!;
+    withAnalyzer(toBinarySTL(inverted), (a) => {
+      expectVolume(a.getSignedVolume(), -6);
+      expectVolume(a.getVolume(), 6);
+      expect(a.assessIntegrity(0).inverted).toBe(true);
+    });
+  });
+});
+
 // Carried over from the 0.1.0 runtime check (tests/wasm/runtime.cjs).
 describe('integrity, surface area, centroid, body count (0.1.0 runtime checks)', () => {
   const assess = (name: keyof typeof fixtures) => withAnalyzer(fixtures[name](), (a) => ({

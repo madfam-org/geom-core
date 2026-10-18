@@ -270,14 +270,121 @@ def test_bounds_min_max():
         analyzer = geom_core_py.Analyzer()
         assert analyzer.load_stl(temp_file)
         bounds = analyzer.get_bounds()
-        for corner, expected in ((bounds.min, -5.0), (bounds.max, 5.0), (bounds.size, 10.0)):
-            assert (corner.x, corner.y, corner.z) == (expected, expected, expected), bounds
+        for corner, expected in (
+            (bounds.min, -5.0),
+            (bounds.max, 5.0),
+            (bounds.size, 10.0),
+        ):
+            assert (corner.x, corner.y, corner.z) == (
+                expected,
+                expected,
+                expected,
+            ), bounds
         old = analyzer.get_bounding_box()
         assert (old.x, old.y, old.z) == (bounds.size.x, bounds.size.y, bounds.size.z)
         print(f"  ✓ {bounds!r}")
     finally:
         if os.path.exists(temp_file):
             os.remove(temp_file)
+
+
+def write_binary_stl(filepath, triangles):
+    """Binary STL from a list of ((x, y, z), (x, y, z), (x, y, z)) triangles."""
+    with open(filepath, "wb") as f:
+        f.write(b"\0" * 80)
+        f.write(struct.pack("<I", len(triangles)))
+        for tri in triangles:
+            f.write(struct.pack("<3f", 0.0, 0.0, 0.0))
+            for vertex in tri:
+                f.write(struct.pack("<3f", *vertex))
+            f.write(struct.pack("<H", 0))
+
+
+def box_triangles(origin=(0.0, 0.0, 0.0), size=10.0, flip=False):
+    """Outward-wound (or, with flip, inward-wound) axis-aligned box."""
+    ox, oy, oz = origin
+    p = [
+        (
+            ox + (size if i & 1 else 0),
+            oy + (size if i & 2 else 0),
+            oz + (size if i & 4 else 0),
+        )
+        for i in range(8)
+    ]
+    faces = [
+        (0, 2, 1), (1, 2, 3), (4, 5, 6), (5, 7, 6), (0, 1, 4), (1, 5, 4),
+        (2, 6, 3), (3, 6, 7), (0, 4, 2), (2, 4, 6), (1, 3, 5), (3, 7, 5),
+    ]  # fmt: skip
+    return [
+        tuple(p[i] for i in ((a, c, b) if flip else (a, b, c))) for a, b, c in faces
+    ]
+
+
+def test_body_count_modes():
+    """Edge connectivity (default) vs vertex connectivity at a shared corner."""
+    print("\nTesting body count modes...")
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, "corner.stl")
+        write_binary_stl(
+            path, box_triangles() + box_triangles(origin=(10.0, 10.0, 10.0))
+        )
+        analyzer = geom_core_py.Analyzer()
+        assert analyzer.load_stl(path)
+        assert analyzer.get_vertex_count() == 15
+        assert analyzer.get_body_count() == 2
+        assert analyzer.get_body_count("edge") == 2
+        assert analyzer.get_body_count(mode="vertex") == 1
+        assert analyzer.assess_integrity().body_count == 2
+        try:
+            analyzer.get_body_count("face")
+        except ValueError as exc:
+            assert "edge" in str(exc)
+        else:
+            raise AssertionError("an unknown mode must raise ValueError")
+    print("  ✓ corner-touching boxes: 2 bodies by edge, 1 by vertex")
+
+
+def test_signed_volume():
+    """get_signed_volume() exposes an inside-out solid; get_volume() is absolute."""
+    print("\nTesting signed volume...")
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, "inverted.stl")
+        write_binary_stl(path, box_triangles(flip=True))
+        analyzer = geom_core_py.Analyzer()
+        assert analyzer.load_stl(path)
+        assert abs(analyzer.get_signed_volume() + 1000.0) < 1e-9
+        assert abs(analyzer.get_volume() - 1000.0) < 1e-9
+        verdict = analyzer.assess_integrity()
+        assert verdict.inverted and abs(verdict.volume + 1000.0) < 1e-9
+    print("  ✓ inside-out box: signed -1000, absolute 1000, inverted")
+
+
+def test_load_stl_is_silent():
+    """A successful load writes nothing to stdout or stderr."""
+    print("\nTesting that load_stl does not print...")
+    import subprocess
+
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, "cube.stl")
+        write_binary_stl_cube(path)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys, geom_core_py; assert geom_core_py.Analyzer().load_stl(sys.argv[1])",
+                path,
+            ],
+            env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "" and result.stderr == "", (
+            result.stdout,
+            result.stderr,
+        )
+    print("  ✓ no output")
 
 
 def test_module_version():
@@ -305,6 +412,9 @@ def main():
         test_watertight()
         test_bounding_box()
         test_bounds_min_max()
+        test_body_count_modes()
+        test_signed_volume()
+        test_load_stl_is_silent()
         test_module_version()
 
         print("\n" + "=" * 60)

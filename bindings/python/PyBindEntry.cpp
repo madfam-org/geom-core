@@ -75,7 +75,7 @@ PYBIND11_MODULE(geom_core_py, m) {
         .def_readonly("inverted", &madfam::geom::MeshIntegrity::inverted,
                       "Watertight, consistently wound and negative volume")
         .def_readonly("body_count", &madfam::geom::MeshIntegrity::bodyCount,
-                      "Connected components of faces sharing a vertex")
+                      "Connected components of faces sharing an edge")
         .def_readonly("notes", &madfam::geom::MeshIntegrity::notes,
                       "Why the verdict is what it is")
         .def_property_readonly("summary", &madfam::geom::MeshIntegrity::summary,
@@ -126,7 +126,8 @@ PYBIND11_MODULE(geom_core_py, m) {
              py::arg("linear_deflection") = 0.1,
              py::arg("angular_deflection") = 0.5)
         .def("get_volume", &madfam::geom::Analyzer::getVolume,
-             "Calculate the volume of the loaded mesh")
+             "Absolute volume of the loaded mesh (mm³); see get_signed_volume() "
+             "to detect an inside-out solid")
         .def("is_watertight", &madfam::geom::Analyzer::isWatertight,
              "Check if the loaded mesh is watertight (manifold)")
         .def("get_bounding_box", &madfam::geom::Analyzer::getBoundingBox,
@@ -137,8 +138,18 @@ PYBIND11_MODULE(geom_core_py, m) {
              "Total surface area of the loaded mesh (mm²)")
         .def("get_centroid", &madfam::geom::Analyzer::getCentroid,
              "Volumetric centroid of the loaded mesh as Vector3 (origin if |volume| < 1e-9)")
-        .def("get_body_count", &madfam::geom::Analyzer::getBodyCount,
-             "Number of connected bodies (faces sharing a vertex)")
+        .def("get_body_count",
+             [](const madfam::geom::Analyzer& self, const std::string& mode) {
+                 if (mode == "edge") return self.getBodyCount(madfam::geom::BodyConnectivity::Edge);
+                 if (mode == "vertex") return self.getBodyCount(madfam::geom::BodyConnectivity::Vertex);
+                 throw py::value_error("mode must be 'edge' or 'vertex', got '" + mode + "'");
+             },
+             "Number of connected bodies. mode='edge' (default): faces sharing an edge "
+             "(like trimesh split()); mode='vertex': faces sharing any vertex "
+             "(geom-core 0.1.0, like trimesh body_count)",
+             py::arg("mode") = "edge")
+        .def("get_signed_volume", &madfam::geom::Analyzer::getSignedVolume,
+             "Signed volume (mm³): negative when the closed surface is inside out")
         .def("assess_integrity",
              [](const madfam::geom::Analyzer& self, std::optional<double> scaleHint) {
                  return self.assessIntegrity(scaleHint);
