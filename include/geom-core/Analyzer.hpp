@@ -195,27 +195,6 @@ namespace madfam::geom {
          */
         const std::vector<float>& calculateWallThicknessMap(double maxSearchDistanceMM);
 
-        // ========================================
-        // Legacy Methods (for backward compatibility)
-        // ========================================
-
-        /**
-         * @brief Legacy placeholder method
-         * @deprecated Use loadSTL() instead
-         */
-        bool loadData(const std::string& data);
-
-        /**
-         * @brief Legacy mock volume calculation
-         * @deprecated Use loadSTL() + getVolume() instead
-         */
-        double getMockVolume(double base_radius);
-
-        /**
-         * @brief Sanity check function
-         */
-        int add(int a, int b);
-
     private:
         std::unique_ptr<Mesh> mesh;
         std::unique_ptr<AABBTree> spatialTree;

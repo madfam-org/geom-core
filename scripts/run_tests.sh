@@ -16,6 +16,10 @@ export PYTHONPATH="${PROJECT_ROOT}/build/python:${PYTHONPATH}"
 
 # Run all tests
 echo ""
+echo "Running test_version.py..."
+python3 tests/test_version.py
+
+echo ""
 echo "Running test_mesh.py..."
 python3 tests/test_mesh.py
 python3 tests/test_stl_admission.py

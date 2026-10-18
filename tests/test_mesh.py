@@ -255,27 +255,16 @@ def test_bounding_box():
             os.remove(temp_file)
 
 
-def test_legacy_methods():
-    """Test that legacy methods still work (backward compatibility)."""
-    print("\nTesting legacy methods (backward compatibility)...")
+def test_module_version():
+    """The compiled module reports the pyproject.toml version via CMake."""
+    print("\nTesting module __version__...")
+    import re
 
-    analyzer = geom_core_py.Analyzer()
-
-    # Test add
-    result = analyzer.add(1, 2)
-    assert result == 3
-    print(f"  ✓ add(1, 2) = {result}")
-
-    # Test load_data
-    result = analyzer.load_data("test.stl")
-    assert result == True
-    print(f"  ✓ load_data() = {result}")
-
-    # Test get_mock_volume
-    volume = analyzer.get_mock_volume(1.0)
-    expected = 4.18879020478639
-    assert abs(volume - expected) < 0.001
-    print(f"  ✓ get_mock_volume(1.0) = {volume:.6f}")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as fh:
+        expected = re.findall(r'^version = "([0-9.]+)"$', fh.read(), re.M)[0]
+    assert geom_core_py.__version__ == expected, geom_core_py.__version__
+    print(f"  ✓ geom_core_py.__version__ = {geom_core_py.__version__}")
 
 
 def main():
@@ -290,7 +279,7 @@ def main():
         test_cube_volume()
         test_watertight()
         test_bounding_box()
-        test_legacy_methods()
+        test_module_version()
 
         print("\n" + "=" * 60)
         print("✓ All Milestone 2 tests passed!")

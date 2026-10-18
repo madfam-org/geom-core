@@ -70,6 +70,21 @@ export type { MateType, PatternType } from "./types.js";
 
 import { createHandleId, getShapeId } from "./types.js";
 
+/** Methods this file calls on untyped opencascade.js gp_Trsf handles. */
+interface OCCTTrsfMethods {
+  SetValues(...matrix: number[]): void;
+  SetTranslation(vector: unknown): void;
+  SetRotation(axis: unknown, angle: number): void;
+  SetScale(center: unknown, factor: number): void;
+  SetMirror(plane: unknown): void;
+}
+
+/** Methods this file calls on untyped opencascade.js GProp_GProps handles. */
+interface OCCTGPropMethods {
+  Mass(): number;
+  CentreOfMass(): { X(): number; Y(): number; Z(): number };
+}
+
 // =============================================================================
 // Logger
 // =============================================================================
@@ -1172,7 +1187,7 @@ export class GeometryEngine {
             ];
 
         // OCCT uses 3x4 transformation matrix
-        (trsf as any).SetValues(
+        (trsf as unknown as OCCTTrsfMethods).SetValues(
           matrix[0],
           matrix[1],
           matrix[2],
@@ -1212,7 +1227,7 @@ export class GeometryEngine {
 
         const vec = this.vec3.createVec3(params.vector);
         const trsf = new this.occt.gp_Trsf();
-        (trsf as any).SetTranslation(vec);
+        (trsf as unknown as OCCTTrsfMethods).SetTranslation(vec);
 
         const transformer = new this.occt.BRepBuilderAPI_Transform(
           shape,
@@ -1246,7 +1261,7 @@ export class GeometryEngine {
 
         const ax = this.vec3.createAxis(center, axis);
         const trsf = new this.occt.gp_Trsf();
-        (trsf as any).SetRotation(ax.Axis!(), angle);
+        (trsf as unknown as OCCTTrsfMethods).SetRotation(ax.Axis!(), angle);
 
         const transformer = new this.occt.BRepBuilderAPI_Transform(
           shape,
@@ -1276,7 +1291,7 @@ export class GeometryEngine {
 
         const centerPnt = this.vec3.createPoint(center);
         const trsf = new this.occt.gp_Trsf();
-        (trsf as any).SetScale(centerPnt, factor);
+        (trsf as unknown as OCCTTrsfMethods).SetScale(centerPnt, factor);
 
         const transformer = new this.occt.BRepBuilderAPI_Transform(
           shape,
@@ -1310,7 +1325,7 @@ export class GeometryEngine {
         const plane = new this.occt.gp_Ax2(pointPnt, normalDir);
 
         const trsf = new this.occt.gp_Trsf();
-        (trsf as any).SetMirror(plane.Ax2!());
+        (trsf as unknown as OCCTTrsfMethods).SetMirror(plane.Ax2!());
 
         const transformer = new this.occt.BRepBuilderAPI_Transform(
           shape,
@@ -1424,12 +1439,12 @@ export class GeometryEngine {
 
         calculator.VolumeProperties(shape, props);
 
-        const volume = (props as any).Mass();
-        const center = (props as any).CentreOfMass();
+        const volume = (props as unknown as OCCTGPropMethods).Mass();
+        const center = (props as unknown as OCCTGPropMethods).CentreOfMass();
 
         // Get surface area
         calculator.SurfaceProperties(shape, props);
-        const surfaceArea = (props as any).Mass();
+        const surfaceArea = (props as unknown as OCCTGPropMethods).Mass();
 
         const result: ShapeProperties = {
           volume,
@@ -1462,7 +1477,7 @@ export class GeometryEngine {
         const calculator = new this.occt.BRepGProp();
 
         calculator.VolumeProperties(shape, props);
-        const volume = (props as any).Mass();
+        const volume = (props as unknown as OCCTGPropMethods).Mass();
 
         props.delete();
         calculator.delete();
@@ -1484,7 +1499,7 @@ export class GeometryEngine {
         const calculator = new this.occt.BRepGProp();
 
         calculator.SurfaceProperties(shape, props);
-        const area = (props as any).Mass();
+        const area = (props as unknown as OCCTGPropMethods).Mass();
 
         props.delete();
         calculator.delete();
@@ -1613,7 +1628,7 @@ export class GeometryEngine {
         const calculator = new this.occt.BRepGProp();
 
         calculator.VolumeProperties(shape, props);
-        const center = (props as any).CentreOfMass();
+        const center = (props as unknown as OCCTGPropMethods).CentreOfMass();
 
         const result: Vec3 = {
           x: center.X(),

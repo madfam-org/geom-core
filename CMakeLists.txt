@@ -1,5 +1,22 @@
 cmake_minimum_required(VERSION 3.15)
-project(geom-core VERSION 2.0.0 LANGUAGES CXX)
+
+# ===========================================================================
+# Version: single source of truth is pyproject.toml ([project] version).
+# CMake derives PROJECT_VERSION from it; package.json and
+# src/typescript/index.ts must carry the same literal, which
+# tests/test_version.py enforces in CI.
+# ===========================================================================
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml" GEOM_CORE_VERSION_LINE
+     REGEX "^version = \"[0-9]+\\.[0-9]+\\.[0-9]+\"$" LIMIT_COUNT 1)
+string(REGEX REPLACE "^version = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"$" "\\1"
+       GEOM_CORE_VERSION "${GEOM_CORE_VERSION_LINE}")
+if(NOT GEOM_CORE_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "Could not read [project] version from pyproject.toml")
+endif()
+
+project(geom-core VERSION ${GEOM_CORE_VERSION} LANGUAGES CXX)
+# Every target (native library, Python module, WASM) reports this version.
+add_compile_definitions(GEOM_CORE_VERSION="${PROJECT_VERSION}")
 
 # ===========================================================================
 # Zero-Lag Geometry Engine
@@ -180,7 +197,7 @@ if(NOT EMSCRIPTEN)
         POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME "geom_core"
         VERSION ${PROJECT_VERSION}
-        SOVERSION 2
+        SOVERSION ${PROJECT_VERSION_MAJOR}
     )
 endif()
 

@@ -120,7 +120,8 @@ if readme_path.exists():
 
 setup(
     name='geom-core',
-    version='0.1.0',
+    # version: read by setuptools from pyproject.toml ([project] version),
+    # the single version source shared with CMake.
     author='MadFam',
     author_email='contact@madfam.io',
     description='High-performance C++ geometry analysis engine for 3D printing',
