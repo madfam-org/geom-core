@@ -21,9 +21,14 @@ and must pass its own CI lane. Neither is validated by the Python analysis
 suite. The default kernel-free WASM build now compiles the CAD interfaces but
 returns `OCCT_UNAVAILABLE` for primitives, matching the explicit failure behavior
 of booleans and features. It never reports a bounding-box placeholder as a solid.
-Local threaded WASM execution verifies a real STL cube's 1,000 mm³ volume,
-watertightness and 10 mm dimensions, plus malformed-input rejection. CI repeats
-these checks and also builds/runs without threads. Closure requires Java 21.
+The WASM package ships two builds (0.2.0): the default single-threaded ES
+module (`@madfam/geom-core/wasm`, no `SharedArrayBuffer`, no workers) and an
+opt-in pthread build (`@madfam/geom-core/threaded`, cross-origin-isolated
+hosts only). There is no local Emscripten toolchain in the maintainers' lanes;
+CI's WASM job builds both and runs `pnpm test:wasm` (the single-threaded build
+in Node and in jsdom without `SharedArrayBuffer`, plus a Vite app build) and
+`pnpm test:wasm:threaded` (the threaded build in Node). No real browser runs
+in CI. Closure requires Java 21.
 Mesh arrays returned from temporary CAD operation results are copied into
 JavaScript-owned arrays; they cannot outlive freed C++ vectors.
 
