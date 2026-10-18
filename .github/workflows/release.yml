@@ -130,16 +130,33 @@ jobs:
     - run: pnpm lint
     - run: pnpm build:ts
     - run: pnpm test
-    - name: Build WASM (threaded, as ci.yml)
+    - name: Build WASM (single-threaded default + threaded opt-in, as ci.yml)
       run: ./scripts/build_wasm.sh
-    - name: Test the WASM module
-      run: node tests/wasm/runtime.cjs
+    - name: Test the WASM modules
+      run: |
+        pnpm test:wasm
+        pnpm test:wasm:threaded
     - name: Pack
       run: |
+        set -o pipefail
         mkdir -p npm-dist
         npm pack --pack-destination npm-dist
-        tar -tzf npm-dist/*.tgz | grep -q '^package/dist/wasm/geom-core.wasm$'
-        tar -tzf npm-dist/*.tgz | grep -q '^package/dist/esm/index.js$'
+        listing=$(tar -tzf npm-dist/*.tgz)
+        for f in dist/esm/index.js dist/wasm/package.json \
+                 dist/wasm/index.js dist/wasm/index.d.ts dist/wasm/geom-core.js dist/wasm/geom-core.wasm \
+                 dist/wasm/threaded.js dist/wasm/threaded.d.ts dist/wasm/geom-core-threaded.js dist/wasm/geom-core-threaded.wasm \
+                 dist/wasm/loader.js dist/wasm/loader.d.ts dist/wasm/types.d.ts; do
+          grep -qx "package/$f" <<< "$listing" || { echo "::error::npm tarball is missing $f"; exit 1; }
+        done
+        {
+          echo "### npm tarball"
+          echo ""
+          echo "| File | Bytes |"
+          echo "|---|---:|"
+          tar -tvzf npm-dist/*.tgz | awk '$6 ~ /^package\/dist\/wasm\// { printf "| `%s` | %s |\n", substr($6, 9), $3 }'
+          echo ""
+          echo "Tarball: $(stat -c %s npm-dist/*.tgz) bytes"
+        } | tee -a "$GITHUB_STEP_SUMMARY"
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: npm-tarball

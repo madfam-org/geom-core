@@ -127,7 +127,16 @@ jobs:
         emcc --version
         which emcmake
     
-    - name: Build WASM
+    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      with:
+        version: 9.15.0
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: '20'
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+
+    - name: Build WASM (single-threaded default + threaded opt-in)
       run: |
         chmod +x scripts/build_wasm.sh
         ./scripts/build_wasm.sh
@@ -135,24 +144,32 @@ jobs:
     - name: Verify native CAD capability and STL contracts
       run: bash scripts/test_cad_contract.sh
 
-    - name: Verify real threaded WASM geometry
-      run: node tests/wasm/runtime.cjs
-    
+    - name: Single-threaded WASM (Vitest, node + jsdom without SharedArrayBuffer, Vite bundle)
+      run: pnpm test:wasm
+
+    - name: Threaded WASM smoke (Node provides SharedArrayBuffer + worker_threads)
+      run: pnpm test:wasm:threaded
+
+    - name: WASM size table
+      run: |
+        set -o pipefail
+        {
+          echo "### geom-core WASM sizes"
+          echo ""
+          echo "| File | Bytes | KiB | gzip -9 KiB |"
+          echo "|---|---:|---:|---:|"
+          for f in dist/wasm/geom-core.wasm dist/wasm/geom-core.js dist/wasm/geom-core-threaded.wasm dist/wasm/geom-core-threaded.js dist/wasm/index.js dist/wasm/threaded.js dist/wasm/loader.js; do
+            bytes=$(stat -c %s "$f")
+            gz=$(gzip -9 -c "$f" | wc -c)
+            awk -v f="${f#dist/wasm/}" -v b="$bytes" -v g="$gz" 'BEGIN { printf "| `%s` | %d | %.1f | %.1f |\n", f, b, b / 1024, g / 1024 }'
+          done
+        } | tee -a "$GITHUB_STEP_SUMMARY"
+
     - name: Upload WASM artifacts
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: wasm-dist
         path: dist/
-
-    - name: Verify WASM without SharedArrayBuffer
-      run: |
-        ./scripts/build_wasm.sh --no-threads
-        node tests/wasm/runtime.cjs
-    
-    - name: List artifacts
-      run: |
-        echo "WASM build artifacts:"
-        ls -lh dist/
 
   # ========================================
   # Job 3: Python Package Build
