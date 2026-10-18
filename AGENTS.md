@@ -317,12 +317,9 @@ make
 
 ## Consumers
 
-| Project | Usage |
-|---------|-------|
-| **Sim4D** | Primary CAD geometry engine |
-| **Forj** | Model validation before fabrication |
-| **Blueprint Harvester** | Printability scoring pipeline |
-| **Cotiza Studio** | Quote accuracy from geometry |
+None yet. The legacy table that listed Sim4D, Forj, Blueprint Harvester and
+Cotiza Studio was never true (no repo imports geom-core; Sim4D is retired).
+Current plan: [README → Adoption plan (R8)](README.md#adoption-plan-r8).
 
 ---
 

@@ -13,6 +13,10 @@
 #include <Standard_Version.hxx>
 #endif
 
+#ifndef GEOM_CORE_VERSION
+#error "GEOM_CORE_VERSION must be defined by the build (CMake derives it from pyproject.toml)"
+#endif
+
 #include <chrono>
 #include <sstream>
 
@@ -54,7 +58,7 @@ bool Engine::initialize() {
 
 std::string Engine::getVersion() const {
     std::stringstream ss;
-    ss << "geom-core v0.1.0";
+    ss << "geom-core v" << GEOM_CORE_VERSION;
     
 #ifdef GC_USE_OCCT
     ss << " (OCCT " << OCC_VERSION_COMPLETE << ")";

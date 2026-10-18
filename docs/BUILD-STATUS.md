@@ -29,11 +29,16 @@ JavaScript-owned arrays; they cannot outlive freed C++ vectors.
 
 This does not validate CAD authoring with OCCT in WASM. The optional OCCT and
 split-module targets still reference absent source files and require separate
-implementation and verification. Keep the package unreleased until its declared
-capabilities and target-specific release gates are satisfied; Python analysis or
-kernel-free WASM success is not evidence of browser CAD boolean support.
+implementation and verification. GitHub Release assets (`release.yml`) cover
+mesh analysis only: wheels are built without OCCT and the npm tarball carries
+the kernel-free WASM module. Python analysis or kernel-free WASM success is not
+evidence of browser CAD boolean support.
 
-Python formatting and critical syntax/undefined-name checks fail CI on errors.
+Python formatting and critical syntax/undefined-name checks fail CI on errors,
+as do TypeScript lint (`pnpm lint`, `.eslintrc.cjs`) and the version-agreement
+check (`tests/test_version.py`). The former "Documentation Build" job only
+echoed whether README and LICENSE existed and could not fail; it was removed
+because no documentation build (Doxygen, MkDocs) is configured.
 The previous C++ formatting placeholder was not a check; C++ compilation is
 validated by the actual build jobs.
 

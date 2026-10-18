@@ -6,6 +6,8 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(geom_core_py, m) {
     m.doc() = "geom-core: High-performance geometry analysis library";
+    // Derived by CMake from pyproject.toml, the single version source.
+    m.attr("__version__") = GEOM_CORE_VERSION;
 #ifdef GC_USE_OCCT
     m.attr("has_occt") = true;
 #else
@@ -99,16 +101,5 @@ PYBIND11_MODULE(geom_core_py, m) {
         .def("auto_orient", &madfam::geom::Analyzer::autoOrient,
              "Find optimal mesh orientation to minimize overhang area",
              py::arg("sample_resolution") = 26,
-             py::arg("critical_angle_degrees") = 45.0)
-
-        // Legacy methods (for backward compatibility)
-        .def("load_data", &madfam::geom::Analyzer::loadData,
-             "Load geometry data (placeholder - deprecated)",
-             py::arg("data"))
-        .def("get_mock_volume", &madfam::geom::Analyzer::getMockVolume,
-             "Calculate mock volume using sphere formula: (4/3)*PI*r^3 (deprecated)",
-             py::arg("base_radius"))
-        .def("add", &madfam::geom::Analyzer::add,
-             "Add two integers (sanity check)",
-             py::arg("a"), py::arg("b"));
+             py::arg("critical_angle_degrees") = 45.0);
 }

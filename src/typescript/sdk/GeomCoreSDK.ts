@@ -512,8 +512,9 @@ export class GeomCoreSDK {
       if (typeof value === "string" && value.startsWith("shape_")) {
         ids.push(value);
       } else if (typeof value === "object" && value !== null) {
-        if ("id" in value && typeof (value as any).id === "string") {
-          ids.push((value as any).id);
+        const id = (value as { id?: unknown }).id;
+        if (typeof id === "string") {
+          ids.push(id);
         }
       }
     };

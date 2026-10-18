@@ -18,11 +18,11 @@ embedded below.
 
 ## 1. What this repo is
 
-Zero-dependency C++17 core library for 3D geometry analysis: binary STL + STEP file parsing (OCCT optional), mesh analysis (volume, watertight, bounding box), printability checks, toolpath generation primitives. Consumed by yantra4d, digifab-quoting, blueprint-harvester, and pravara-mes via Python bindings or WASM.
+Zero-dependency C++17 core library for 3D mesh analysis — mesh in, numbers out: binary STL parsing (STEP via optional OCCT), volume, watertightness, bounding box, printability (overhang, wall thickness) and auto-orientation, with a Python module and a WASM/TypeScript package. It does not generate geometry or toolpaths. Not consumed by any repo yet — see [README → Adoption plan (R8)](README.md#adoption-plan-r8).
 
 **Pillar**: Fabrication / Geometry library
 **Type**: library
-**Status**: stable
+**Status**: incubating — unreleased (no PyPI or npm package yet; GitHub Releases are the first distribution channel)
 **Registry product**: geom-core (`geom-core`, incubating).
 
 ### Deployed services
@@ -41,7 +41,7 @@ _(no deployed services — this repo is a library/tool.)_
 
 ### Downstream consumers (this repo is consumed by)
 
-- yantra4d, digifab-quoting, blueprint-harvester, pravara-mes
+- None yet — R8 adoption plan: yantra4d browser path first. See [README → Adoption plan (R8)](README.md#adoption-plan-r8).
 
 ### Key environment variables
 

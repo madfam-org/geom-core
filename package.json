@@ -33,7 +33,7 @@
     "dev": "tsc -p tsconfig.esm.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:wasm": "node tests/test_wasm.js",
+    "test:wasm": "node tests/wasm/runtime.cjs",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit",

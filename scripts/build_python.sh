@@ -31,5 +31,5 @@ echo "Build complete!"
 echo "Python module: build/python/geom_core_py.*"
 echo "========================================"
 
-# List built files
-ls -lh python/geom_core_py.* 2>/dev/null || true
+# List built files (fails the build if no module was produced)
+ls -lh python/geom_core_py.*

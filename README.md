@@ -8,10 +8,11 @@
 
 High-performance C++ geometry analysis engine for 3D printing, with Python and WebAssembly bindings.
 
-Native Python mesh analysis can be built and tested independently. CAD authoring
-and WASM remain experimental and have unresolved build failures. See
-[build and verification boundaries](docs/BUILD-STATUS.md) before publishing or
-using those packages; native analysis test results do not validate them.
+Native mesh analysis (Python module and kernel-free WASM) is built and tested in
+CI. CAD authoring is experimental and needs OCCT; without it every CAD
+operation returns an explicit `OCCT_UNAVAILABLE`/`NOT_IMPLEMENTED` error. See
+[build and verification boundaries](docs/BUILD-STATUS.md); mesh-analysis test
+results do not validate CAD authoring.
 
 ## Features
 
@@ -28,10 +29,20 @@ using those packages; native analysis test results do not validate them.
 
 ## Installation
 
-### Python (via pip)
+geom-core is **not on PyPI or npm yet**. Releases are distributed as GitHub
+Release assets (see [Releases and versioning](#releases-and-versioning)).
+
+### Python (from a GitHub Release)
 
 ```bash
-pip install geom-core
+# Pick the wheel for your platform and Python from the release page
+pip install https://github.com/madfam-org/geom-core/releases/download/v0.1.0/<wheel-file>.whl
+```
+
+### TypeScript / WASM (from a GitHub Release)
+
+```bash
+npm install https://github.com/madfam-org/geom-core/releases/download/v0.1.0/madfam-geom-core-0.1.0.tgz
 ```
 
 ### Build from Source
@@ -199,6 +210,7 @@ The project includes comprehensive tests for all features:
 - `tests/test_printability.py`: Printability analysis (Milestone 4)
 - `tests/test_auto_orient.py`: Auto-orientation (Milestone 5)
 - `tests/test_step.py`: STEP file loading API (Milestone 7)
+- `tests/test_version.py`: pyproject.toml, CMake, package.json and `index.ts` agree on the version
 
 All tests run automatically via GitHub Actions on every push.
 
@@ -208,7 +220,7 @@ All tests run automatically via GitHub Actions on every push.
 
 #### Mesh Loading
 - `load_stl(filepath)`: Load binary STL file
-- `load_stl_from_bytes(data)`: Load from memory (WASM-friendly)
+- `loadSTLFromBytes(data)`: Load from memory (WASM binding only; the Python module has no bytes loader)
 - `load_step(filepath, linear_deflection=0.1, angular_deflection=0.5)`: Load STEP/STP file (requires OCCT)
 
 #### Mesh Properties
@@ -326,6 +338,53 @@ for (let i = 0; i < triangleCount; i++) {
 ```
 
 This approach enables real-time visualization of large meshes (100k+ triangles) with zero performance overhead.
+
+## Releases and versioning
+
+**Version source.** `pyproject.toml` (`[project] version`) is the single source
+of truth. `CMakeLists.txt` reads it into `PROJECT_VERSION` and passes it to
+every target as `GEOM_CORE_VERSION` (`geom_core_py.__version__`, the CAD
+engine's `getVersion()`); `setup.py` lets setuptools read it from
+`pyproject.toml`. `package.json` and `src/typescript/index.ts` cannot read a
+file at runtime, so they carry the same literal and `tests/test_version.py`
+fails CI if any of them disagree. To bump: edit those three files together.
+
+**GitHub Releases.** `.github/workflows/release.yml` runs on a `v*` tag (the tag
+must equal `v` + the version) and on manual dispatch (a dry run that only keeps
+the artefacts on the workflow run). It builds and tests:
+
+- Python wheels for the CI matrix (Linux x86_64 for Python 3.8–3.11, macOS for
+  3.10–3.11) plus an sdist. Wheels are built **without OCCT** (`has_occt` is
+  `False`; STEP loading is unavailable in released wheels). Linux wheels carry
+  the plain `linux_x86_64` tag, not `manylinux`, so they install from the
+  Release URL on a compatible glibc but cannot be uploaded to PyPI as-is.
+- The npm tarball `madfam-geom-core-<version>.tgz`: the TypeScript SDK (ESM,
+  CJS, types) plus the threaded WASM module in `dist/wasm/` (browsers need
+  cross-origin isolation for `SharedArrayBuffer`).
+
+and attaches them to the Release with the workflow's own `github.token`.
+
+### Publishing to PyPI/npm (owner)
+
+Not automated: it needs credentials only the owner holds and two decisions —
+whether `@madfam/geom-core` goes to `npm.madfam.io` (private) or public npm,
+and PyPI trusted publishing for `geom-core`. PyPI also needs `manylinux`
+wheels (for example via `cibuildwheel`), which the Release job does not build
+today. Until then, consumers pin a Release asset URL.
+
+## Adoption plan (R8)
+
+No repository consumes geom-core yet. The R8 audit
+(internal-devops `audits/2026-09-04-geom-core-yantra4d-usage.md`) sets the order:
+
+1. Make it installable and honest: one version, no mock APIs, real CI gates,
+   Release artefacts (this repo).
+2. Adopt yantra4d's stronger mesh-integrity check and expose surface area,
+   centroid and body count (this repo).
+3. First consumer: the **yantra4d browser path** (STL parse, bounding box,
+   volume and centroid through the WASM package behind a feature flag, with
+   yantra4d's own tests as the differential oracle). Then the yantra4d API
+   path, hyperobjects-spec mesh gates, Cotiza, Blueprint and jewelry-studio.
 
 ## Contributing
 
