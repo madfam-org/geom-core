@@ -75,7 +75,7 @@ PYBIND11_MODULE(geom_core_py, m) {
         .def_readonly("inverted", &madfam::geom::MeshIntegrity::inverted,
                       "Watertight, consistently wound and negative volume")
         .def_readonly("body_count", &madfam::geom::MeshIntegrity::bodyCount,
-                      "Connected components of faces sharing a vertex")
+                      "Connected components of faces sharing an edge")
         .def_readonly("notes", &madfam::geom::MeshIntegrity::notes,
                       "Why the verdict is what it is")
         .def_property_readonly("summary", &madfam::geom::MeshIntegrity::summary,
@@ -98,6 +98,20 @@ PYBIND11_MODULE(geom_core_py, m) {
                    std::to_string(v.y) + ", " + std::to_string(v.z) + ")";
         });
 
+    // BoundingBox struct: corners plus size (added in 0.2.0)
+    py::class_<madfam::geom::BoundingBox>(m, "BoundingBox")
+        .def_readonly("min", &madfam::geom::BoundingBox::min, "Minimum corner (mm)")
+        .def_readonly("max", &madfam::geom::BoundingBox::max, "Maximum corner (mm)")
+        .def_readonly("size", &madfam::geom::BoundingBox::size,
+                      "max - min: (width, height, depth), same as get_bounding_box()")
+        .def("__repr__", [](const madfam::geom::BoundingBox& b) {
+            auto v = [](const madfam::geom::Vector3& p) {
+                return "(" + std::to_string(p.x) + ", " + std::to_string(p.y) + ", " +
+                       std::to_string(p.z) + ")";
+            };
+            return "BoundingBox(min=" + v(b.min) + ", max=" + v(b.max) + ", size=" + v(b.size) + ")";
+        });
+
     // Analyzer class
     py::class_<madfam::geom::Analyzer>(m, "Analyzer")
         .def(py::init<>())
@@ -112,17 +126,30 @@ PYBIND11_MODULE(geom_core_py, m) {
              py::arg("linear_deflection") = 0.1,
              py::arg("angular_deflection") = 0.5)
         .def("get_volume", &madfam::geom::Analyzer::getVolume,
-             "Calculate the volume of the loaded mesh")
+             "Absolute volume of the loaded mesh (mm³); see get_signed_volume() "
+             "to detect an inside-out solid")
         .def("is_watertight", &madfam::geom::Analyzer::isWatertight,
              "Check if the loaded mesh is watertight (manifold)")
         .def("get_bounding_box", &madfam::geom::Analyzer::getBoundingBox,
              "Get bounding box dimensions as Vector3(width, height, depth)")
+        .def("get_bounds", &madfam::geom::Analyzer::getBounds,
+             "Axis-aligned bounding box as BoundingBox(min, max, size); all zero when empty")
         .def("get_surface_area", &madfam::geom::Analyzer::getSurfaceArea,
              "Total surface area of the loaded mesh (mm²)")
         .def("get_centroid", &madfam::geom::Analyzer::getCentroid,
              "Volumetric centroid of the loaded mesh as Vector3 (origin if |volume| < 1e-9)")
-        .def("get_body_count", &madfam::geom::Analyzer::getBodyCount,
-             "Number of connected bodies (faces sharing a vertex)")
+        .def("get_body_count",
+             [](const madfam::geom::Analyzer& self, const std::string& mode) {
+                 if (mode == "edge") return self.getBodyCount(madfam::geom::BodyConnectivity::Edge);
+                 if (mode == "vertex") return self.getBodyCount(madfam::geom::BodyConnectivity::Vertex);
+                 throw py::value_error("mode must be 'edge' or 'vertex', got '" + mode + "'");
+             },
+             "Number of connected bodies. mode='edge' (default): faces sharing an edge "
+             "(like trimesh split()); mode='vertex': faces sharing any vertex "
+             "(geom-core 0.1.0, like trimesh body_count)",
+             py::arg("mode") = "edge")
+        .def("get_signed_volume", &madfam::geom::Analyzer::getSignedVolume,
+             "Signed volume (mm³): negative when the closed surface is inside out")
         .def("assess_integrity",
              [](const madfam::geom::Analyzer& self, std::optional<double> scaleHint) {
                  return self.assessIntegrity(scaleHint);

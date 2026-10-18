@@ -11,24 +11,33 @@
 
 namespace madfam::geom {
 
+bool Mesh::failLoad(const std::string& message) {
+    clear();
+    lastError = message;
+#ifndef __EMSCRIPTEN__
+    // Native callers (Python, C++) keep the historical stderr diagnostics.
+    std::cerr << "Error: " << message << std::endl;
+#endif
+    return false;
+}
+
 bool Mesh::loadFromSTL(const std::string& filepath) {
     clear();
+    lastError.clear();
     // Read entire file into memory
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open STL file: " << filepath << std::endl;
-        return false;
+        return failLoad("Could not open STL file: " + filepath);
     }
 
     // Get file size and read into buffer
     std::streamsize size = file.tellg();
-    if (size < 84) return false;
+    if (size < 84) return failLoad("STL buffer too small (< 84 bytes)");
     file.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);
     if (!file.read(buffer.data(), size)) {
-        std::cerr << "Error: Failed to read STL file: " << filepath << std::endl;
-        return false;
+        return failLoad("Failed to read STL file: " + filepath);
     }
 
     file.close();
@@ -40,11 +49,11 @@ bool Mesh::loadFromSTL(const std::string& filepath) {
 bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     // Clear existing data
     clear();
+    lastError.clear();
 
     // Validate minimum size (80-byte header + 4-byte count)
     if (!buffer || size < 84) {
-        std::cerr << "Error: STL buffer too small (< 84 bytes)" << std::endl;
-        return false;
+        return failLoad("STL buffer too small (< 84 bytes)");
     }
 
     // Read 80-byte header (skip it)
@@ -59,8 +68,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     // uint32 count by 50 first can wrap and admit a tiny malicious buffer.
     if (triangleCount > (size - 84) / 50 ||
         triangleCount > static_cast<size_t>(std::numeric_limits<int>::max()) / 3) {
-        std::cerr << "Error: STL triangle count exceeds the buffer or index capacity" << std::endl;
-        return false;
+        return failLoad("STL triangle count exceeds the buffer or index capacity");
     }
 
     // Map to deduplicate vertices: vertex -> index
@@ -74,8 +82,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     for (uint32_t i = 0; i < triangleCount; ++i) {
         // Check if we have enough data left
         if (offset + 50 > size) {
-            std::cerr << "Error: Unexpected end of STL buffer at triangle " << i << std::endl;
-            return false;
+            return failLoad("Unexpected end of STL buffer at triangle " + std::to_string(i));
         }
 
         // Read normal vector (12 bytes) - we'll skip it
@@ -90,9 +97,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
 
             if (!std::isfinite(coords[0]) || !std::isfinite(coords[1]) ||
                 !std::isfinite(coords[2])) {
-                clear();
-                std::cerr << "Error: STL contains non-finite coordinates" << std::endl;
-                return false;
+                return failLoad("STL contains non-finite coordinates");
             }
             Vector3 vertex(coords[0], coords[1], coords[2]);
 
@@ -116,9 +121,6 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
         // Read attribute byte count (2 bytes) - skip it
         offset += 2;
     }
-
-    std::cout << "Loaded STL: " << vertices.size() << " vertices, "
-              << faces.size() << " triangles" << std::endl;
 
     return true;
 }
@@ -199,9 +201,36 @@ int findRoot(std::vector<int>& parent, int i) {
 }
 } // namespace
 
-int Mesh::bodyCount() const {
+int Mesh::bodyCount(BodyConnectivity mode) const {
     if (faces.empty()) {
         return 0;
+    }
+    if (mode == BodyConnectivity::Edge) {
+        // Union faces that share an undirected edge; edges with a repeated
+        // vertex (degenerate faces) connect nothing.
+        std::vector<int> parent(faces.size());
+        for (size_t i = 0; i < parent.size(); ++i) parent[i] = static_cast<int>(i);
+        std::map<std::pair<int, int>, int> firstFace;
+        for (size_t f = 0; f < faces.size(); ++f) {
+            const int ids[3] = {faces[f].v0, faces[f].v1, faces[f].v2};
+            for (int k = 0; k < 3; ++k) {
+                const int a = ids[k];
+                const int b = ids[(k + 1) % 3];
+                if (a == b) continue;
+                const auto key = std::make_pair(std::min(a, b), std::max(a, b));
+                const auto found = firstFace.emplace(key, static_cast<int>(f));
+                if (!found.second) {
+                    const int ra = findRoot(parent, found.first->second);
+                    const int rb = findRoot(parent, static_cast<int>(f));
+                    if (ra != rb) parent[rb] = ra;
+                }
+            }
+        }
+        int bodies = 0;
+        for (size_t f = 0; f < parent.size(); ++f) {
+            if (findRoot(parent, static_cast<int>(f)) == static_cast<int>(f)) ++bodies;
+        }
+        return bodies;
     }
     std::vector<int> parent(vertices.size());
     for (size_t i = 0; i < parent.size(); ++i) parent[i] = static_cast<int>(i);
@@ -266,8 +295,13 @@ bool Mesh::isWatertight() const {
 }
 
 Vector3 Mesh::getBoundingBox() const {
+    return getBounds().size;
+}
+
+BoundingBox Mesh::getBounds() const {
+    BoundingBox box;
     if (vertices.empty()) {
-        return Vector3(0, 0, 0);
+        return box;
     }
 
     double minX = std::numeric_limits<double>::max();
@@ -286,7 +320,10 @@ Vector3 Mesh::getBoundingBox() const {
         maxZ = std::max(maxZ, vertex.z);
     }
 
-    return Vector3(maxX - minX, maxY - minY, maxZ - minZ);
+    box.min = Vector3(minX, minY, minZ);
+    box.max = Vector3(maxX, maxY, maxZ);
+    box.size = Vector3(maxX - minX, maxY - minY, maxZ - minZ);
+    return box;
 }
 
 void Mesh::clear() {

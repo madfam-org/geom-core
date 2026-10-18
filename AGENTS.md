@@ -101,11 +101,14 @@ print(f"Improvement: {result.improvement_percent}%")
 
 ### WebAssembly (Browser)
 ```javascript
-const geomCore = await import('./geom_core.js');
+// Single-threaded by default: no SharedArrayBuffer, no COOP/COEP.
+// Opt-in pthread build: '@madfam/geom-core/threaded' (cross-origin-isolated pages only).
+import createGeomCore from '@madfam/geom-core/wasm';
+const geomCore = await createGeomCore();
 const analyzer = new geomCore.Analyzer();
 
 const fileData = new Uint8Array(await file.arrayBuffer());
-analyzer.loadSTLFromBytes(fileData);
+analyzer.loadSTLFromBytes(fileData);  // throws GeomCoreSTLError on a bad STL
 
 const report = analyzer.getPrintabilityReport(45.0, 0.8);
 console.log(`Score: ${report.score}`);
@@ -168,7 +171,9 @@ pytest tests/
 source ~/emsdk/emsdk_env.sh
 
 ./scripts/build_wasm.sh
-# Output: dist/wasm/geom_core.js, geom_core.wasm
+# Output: dist/wasm/geom-core.{js,wasm} (single-threaded default),
+#         dist/wasm/geom-core-threaded.{js,wasm} (opt-in), entry points from src/wasm/
+pnpm test:wasm && pnpm test:wasm:threaded
 ```
 
 ### TypeScript Package
@@ -225,15 +230,19 @@ python3 -m http.server 8080
 ```python
 # Loading
 analyzer.load_stl(filepath)
-analyzer.load_stl_from_bytes(data)
+# (no bytes loader in Python; WASM has loadSTLFromBytes)
 analyzer.load_step(filepath, linear_deflection=0.1)  # Requires OCCT
 
 # Properties
 analyzer.get_vertex_count()      # int
 analyzer.get_triangle_count()    # int
-analyzer.get_volume()            # float (mm³)
+analyzer.get_volume()            # float (mm³), absolute
+analyzer.get_signed_volume()     # float (mm³), negative when inside out
 analyzer.is_watertight()         # bool
-analyzer.get_bounding_box()      # Vector3
+analyzer.get_bounding_box()      # Vector3 size
+analyzer.get_bounds()            # BoundingBox(min, max, size)
+analyzer.get_body_count(mode="edge")  # or "vertex"
+analyzer.assess_integrity(scale_hint=None)  # MeshIntegrity
 
 # Analysis
 analyzer.build_spatial_index()   # Required for printability

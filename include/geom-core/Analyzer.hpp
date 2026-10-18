@@ -96,7 +96,9 @@ namespace madfam::geom {
 
         /**
          * @brief Calculate the volume of the loaded mesh
-         * @return Volume in cubic units (0.0 if no mesh loaded)
+         * @return Absolute volume in cubic units (0.0 if no mesh loaded); an
+         *         inside-out solid reports a positive value here, so use
+         *         getSignedVolume() or assessIntegrity().inverted to detect it
          */
         double getVolume() const;
 
@@ -108,9 +110,21 @@ namespace madfam::geom {
 
         /**
          * @brief Get bounding box dimensions
-         * @return Vector3 containing (width, height, depth)
+         * @return Vector3 containing (width, height, depth); see getBounds()
          */
         Vector3 getBoundingBox() const;
+
+        /**
+         * @brief Axis-aligned bounding box: min and max corners plus size
+         * @return All zero when no mesh is loaded
+         */
+        BoundingBox getBounds() const;
+
+        /**
+         * @brief Parser message of the last failed loadSTL()/loadSTLFromBytes()
+         * @return "" when the last load succeeded (or nothing was loaded)
+         */
+        std::string getLastError() const;
 
         /**
          * @brief Total surface area of the loaded mesh (mm² for mm input)
@@ -124,8 +138,17 @@ namespace madfam::geom {
 
         /**
          * @brief Number of connected bodies in the loaded mesh, see Mesh::bodyCount()
+         * @param mode Edge (default) or Vertex connectivity, see BodyConnectivity
          */
-        int getBodyCount() const;
+        int getBodyCount(BodyConnectivity mode = BodyConnectivity::Edge) const;
+
+        /**
+         * @brief Signed volume of the loaded mesh, see Mesh::getSignedVolume()
+         *
+         * Negative for an inside-out (inward-wound) closed mesh. getVolume()
+         * is its absolute value and cannot tell an inverted solid apart.
+         */
+        double getSignedVolume() const;
 
         /**
          * @brief Watertight/manifold verdict with evidence for a mesh
@@ -144,6 +167,16 @@ namespace madfam::geom {
          * boundary vs non-manifold edges, winding and orientation.
          */
         MeshIntegrity assessIntegrity(std::optional<double> scaleHint = std::nullopt) const;
+
+        /**
+         * @brief Welded vertices of the loaded mesh (empty when none)
+         */
+        const std::vector<Vector3>& getVertices() const;
+
+        /**
+         * @brief Triangles of the loaded mesh as indices into getVertices()
+         */
+        const std::vector<Triangle>& getFaces() const;
 
         /**
          * @brief Get number of vertices in the loaded mesh

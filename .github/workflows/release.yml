@@ -42,7 +42,8 @@ jobs:
           exit 1
         fi
 
-  # Same OS/Python matrix as ci.yml python-build. Wheels are built without
+  # Same OS/Python matrix as ci.yml python-build (cp38-cp312; macOS
+  # wheels carry arm64 + x86_64 slices). Wheels are built without
   # OCCT so they do not link a runner's system OpenCASCADE; STEP loading
   # reports has_occt == False in released wheels. Linux wheels carry the
   # plain linux_x86_64 tag (not manylinux): installable from the Release
@@ -55,7 +56,7 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
         exclude:
           - os: macos-latest
             python-version: '3.8'
@@ -67,9 +68,33 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Build wheel
+      env:
+        # setup.py maps ARCHFLAGS to CMAKE_OSX_ARCHITECTURES. The macOS
+        # interpreters tag wheels universal2, so build both slices (0.1.0's
+        # universal2 wheels held arm64 code only and failed to import on Intel).
+        ARCHFLAGS: ${{ runner.os == 'macOS' && '-arch arm64 -arch x86_64' || '' }}
       run: |
         python -m pip install --upgrade pip
         python -m pip wheel . --no-deps -w wheelhouse
+    - name: macOS wheel holds every architecture its tag names
+      if: runner.os == 'macOS'
+      run: |
+        set -euo pipefail
+        for wheel in wheelhouse/*.whl; do
+          dir=$(mktemp -d)
+          unzip -q "$wheel" -d "$dir"
+          archs=$(lipo -archs "$dir"/geom_core_py*.so)
+          echo "$(basename "$wheel"): $archs"
+          case "$wheel" in
+            *universal2*) need="arm64 x86_64" ;;
+            *arm64*) need="arm64" ;;
+            *x86_64*) need="x86_64" ;;
+            *) echo "::error::unexpected macOS wheel tag: $wheel"; exit 1 ;;
+          esac
+          for arch in $need; do
+            grep -qw "$arch" <<< "$archs" || { echo "::error::$(basename "$wheel") lacks $arch (has: $archs)"; exit 1; }
+          done
+        done
     - name: Test the installed wheel outside the build tree
       run: |
         python -m venv "$RUNNER_TEMP/wheel-venv"
@@ -130,16 +155,33 @@ jobs:
     - run: pnpm lint
     - run: pnpm build:ts
     - run: pnpm test
-    - name: Build WASM (threaded, as ci.yml)
+    - name: Build WASM (single-threaded default + threaded opt-in, as ci.yml)
       run: ./scripts/build_wasm.sh
-    - name: Test the WASM module
-      run: node tests/wasm/runtime.cjs
+    - name: Test the WASM modules
+      run: |
+        pnpm test:wasm
+        pnpm test:wasm:threaded
     - name: Pack
       run: |
+        set -o pipefail
         mkdir -p npm-dist
         npm pack --pack-destination npm-dist
-        tar -tzf npm-dist/*.tgz | grep -q '^package/dist/wasm/geom-core.wasm$'
-        tar -tzf npm-dist/*.tgz | grep -q '^package/dist/esm/index.js$'
+        listing=$(tar -tzf npm-dist/*.tgz)
+        for f in dist/esm/index.js dist/wasm/package.json \
+                 dist/wasm/index.js dist/wasm/index.d.ts dist/wasm/geom-core.js dist/wasm/geom-core.wasm \
+                 dist/wasm/threaded.js dist/wasm/threaded.d.ts dist/wasm/geom-core-threaded.js dist/wasm/geom-core-threaded.wasm \
+                 dist/wasm/loader.js dist/wasm/loader.d.ts dist/wasm/types.d.ts; do
+          grep -qx "package/$f" <<< "$listing" || { echo "::error::npm tarball is missing $f"; exit 1; }
+        done
+        {
+          echo "### npm tarball"
+          echo ""
+          echo "| File | Bytes |"
+          echo "|---|---:|"
+          tar -tvzf npm-dist/*.tgz | awk '$6 ~ /^package\/dist\/wasm\// { printf "| `%s` | %s |\n", substr($6, 9), $3 }'
+          echo ""
+          echo "Tarball: $(stat -c %s npm-dist/*.tgz) bytes"
+        } | tee -a "$GITHUB_STEP_SUMMARY"
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: npm-tarball

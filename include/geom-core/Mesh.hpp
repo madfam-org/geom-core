@@ -16,6 +16,29 @@ struct Triangle {
 };
 
 /**
+ * @brief Axis-aligned bounding box of a mesh
+ *
+ * min and max are the corner coordinates; size = max - min (width, height,
+ * depth). All three are (0, 0, 0) for an empty mesh.
+ */
+struct BoundingBox {
+    Vector3 min;
+    Vector3 max;
+    Vector3 size;
+};
+
+/**
+ * @brief Which faces count as connected when counting bodies
+ *
+ * Edge: faces sharing an edge (the default; matches
+ * len(trimesh.Trimesh.split(only_watertight=False))). Vertex: faces sharing
+ * any vertex (geom-core 0.1.0's rule; matches trimesh.Trimesh.body_count on
+ * meshes without unreferenced vertices). Two boxes touching at one corner are
+ * 2 bodies by edge and 1 by vertex.
+ */
+enum class BodyConnectivity { Edge, Vertex };
+
+/**
  * @brief Triangular mesh data structure
  *
  * Stores vertices and faces for efficient topology analysis.
@@ -66,9 +89,24 @@ public:
 
     /**
      * @brief Get bounding box dimensions
-     * @return Vector3 containing (width, height, depth)
+     * @return Vector3 containing (width, height, depth); same as getBounds().size
      */
     Vector3 getBoundingBox() const;
+
+    /**
+     * @brief Axis-aligned bounding box with its corners
+     * @return min, max and size (max - min); all zero when the mesh is empty
+     */
+    BoundingBox getBounds() const;
+
+    /**
+     * @brief Why the last loadFromSTL()/loadFromSTLBuffer() call failed
+     * @return The parser message, or "" when the last load succeeded
+     *
+     * Native builds also print the message to stderr (as before); WASM
+     * builds do not, and the JS binding throws it instead.
+     */
+    const std::string& getLastError() const { return lastError; }
 
     /**
      * @brief Signed volume from the signed-tetrahedron sum
@@ -94,10 +132,12 @@ public:
 
     /**
      * @brief Number of connected bodies
-     * @return Connected components of triangles that share a vertex
-     *         (unreferenced vertices are not counted); 0 when empty
+     * @param mode Edge (default): triangles sharing an edge are connected;
+     *        Vertex: triangles sharing any vertex are. See BodyConnectivity.
+     * @return Connected components of triangles (unreferenced vertices are
+     *         not counted); 0 when empty
      */
-    int bodyCount() const;
+    int bodyCount(BodyConnectivity mode = BodyConnectivity::Edge) const;
 
     /**
      * @brief Get the number of vertices in the mesh
@@ -139,6 +179,10 @@ public:
 private:
     std::vector<Vector3> vertices;
     std::vector<Triangle> faces;
+    std::string lastError;
+
+    // Record a load failure: clears the mesh, stores the message, returns false.
+    bool failLoad(const std::string& message);
 };
 
 } // namespace madfam::geom

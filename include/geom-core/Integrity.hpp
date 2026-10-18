@@ -45,7 +45,9 @@ class Mesh;
  * - degenerateFaces: faces with a repeated vertex index or twice-area
  *   <= 1e-12 * extent².
  * - inverted: watertight, consistently wound and negative volume.
- * - bodyCount: connected components of faces sharing a vertex.
+ * - bodyCount: connected components of faces sharing an edge
+ *   (BodyConnectivity::Edge, like trimesh split(); 0.1.0 joined faces sharing
+ *   a vertex).
  * All counts are taken on the mesh the verdict was reached on (merged when a
  * merge sealed it, otherwise as loaded).
  */

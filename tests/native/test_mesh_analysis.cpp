@@ -6,7 +6,9 @@
 #include "geom-core/Mesh.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
@@ -205,11 +207,109 @@ void testIntegrity() {
     check(!unloaded.watertight && analyzer.getBodyCount() == 0, "analyzer without a mesh");
 }
 
+// Binary STL bytes (float32 coordinates, zero normals) for a soup.
+std::string toSTL(const Soup& m) {
+    std::string bytes(84 + m.f.size() * 50, '\0');
+    const uint32_t count = static_cast<uint32_t>(m.f.size());
+    std::memcpy(&bytes[80], &count, 4);
+    size_t offset = 84;
+    for (const auto& t : m.f) {
+        offset += 12;
+        for (int id : {t.v0, t.v1, t.v2}) {
+            const float xyz[3] = {static_cast<float>(m.v[id].x), static_cast<float>(m.v[id].y),
+                                  static_cast<float>(m.v[id].z)};
+            std::memcpy(&bytes[offset], xyz, 12);
+            offset += 12;
+        }
+        offset += 2;
+    }
+    return bytes;
+}
+
+// Two 10 mm boxes touching at the single corner (10, 10, 10).
+Soup cornerTouchingBoxes() {
+    Soup other = box();
+    for (auto& v : other.v) v = Vector3(v.x + 10, v.y + 10, v.z + 10);
+    return weld(concat(box(), other));
+}
+
+void testBodyConnectivity() {
+    using madfam::geom::BodyConnectivity;
+    const Mesh touching = toMesh(cornerTouchingBoxes());
+    check(touching.getVertexCount() == 15, "corner-touching boxes share exactly one vertex");
+    check(touching.bodyCount() == 2, "edge connectivity (default): corner-touching boxes are 2 bodies");
+    check(touching.bodyCount(BodyConnectivity::Edge) == 2, "explicit edge mode: 2 bodies");
+    check(touching.bodyCount(BodyConnectivity::Vertex) == 1, "vertex mode: corner-touching boxes are 1 body");
+    const MeshIntegrity verdict = madfam::geom::assessMeshIntegrity(touching);
+    check(verdict.bodyCount == 2, "integrity bodyCount uses edge connectivity");
+
+    const Mesh shared = toMesh(weld(concat(box(0), box(10))));  // share a whole face
+    check(shared.bodyCount(BodyConnectivity::Edge) == 1 && shared.bodyCount(BodyConnectivity::Vertex) == 1,
+          "boxes sharing a face are one body in both modes");
+    const Mesh apart = toMesh(concat(box(0), box(20)));
+    check(apart.bodyCount(BodyConnectivity::Vertex) == 2, "disjoint boxes: 2 bodies by vertex too");
+
+    Analyzer analyzer;
+    check(analyzer.loadSTLFromBytes(toSTL(cornerTouchingBoxes())), "corner-touching STL loads");
+    check(analyzer.getBodyCount() == 2 && analyzer.getBodyCount(BodyConnectivity::Vertex) == 1,
+          "Analyzer::getBodyCount modes");
+}
+
+void testSignedVolume() {
+    Soup flipped = box();
+    for (auto& t : flipped.f) std::swap(t.v1, t.v2);
+    Analyzer analyzer;
+    check(analyzer.loadSTLFromBytes(toSTL(flipped)), "inside-out box loads");
+    check(near(analyzer.getSignedVolume(), -1000.0), "signed volume is negative when inside out");
+    check(near(analyzer.getVolume(), 1000.0), "getVolume() stays absolute");
+    check(analyzer.assessIntegrity().inverted && near(analyzer.assessIntegrity().volume, -1000.0),
+          "assessIntegrity reports the signed volume");
+}
+
+void testBoundsAndLoadErrors() {
+    Analyzer analyzer;
+    const auto empty = analyzer.getBounds();
+    check(empty.min.x == 0 && empty.max.z == 0 && empty.size.y == 0, "bounds without a mesh are zero");
+
+    // Box [12, 22] x [0, 10] x [0, 10]: min/max are corners, size the extents.
+    check(analyzer.loadSTLFromBytes(toSTL(box(12.0))), "offset box loads");
+    check(analyzer.getLastError().empty(), "no error after a good load");
+    const auto b = analyzer.getBounds();
+    check(near(b.min.x, 12) && near(b.min.y, 0) && near(b.min.z, 0), "bounds min corner");
+    check(near(b.max.x, 22) && near(b.max.y, 10) && near(b.max.z, 10), "bounds max corner");
+    check(near(b.size.x, 10) && near(b.size.y, 10) && near(b.size.z, 10), "bounds size");
+    const Vector3 extents = analyzer.getBoundingBox();
+    check(extents.x == b.size.x && extents.y == b.size.y && extents.z == b.size.z,
+          "getBoundingBox() still returns the size");
+
+    check(!analyzer.loadSTLFromBytes(std::string(10, '\0')), "short buffer rejected");
+    check(analyzer.getLastError() == "STL buffer too small (< 84 bytes)",
+          "short buffer message: " + analyzer.getLastError());
+    check(analyzer.getTriangleCount() == 0, "failed load leaves no mesh");
+
+    std::string huge(84, '\0');
+    const uint32_t claimed = 20000000;
+    std::memcpy(&huge[80], &claimed, 4);
+    check(!analyzer.loadSTLFromBytes(huge), "oversized face count rejected");
+    check(analyzer.getLastError() == "STL triangle count exceeds the buffer or index capacity",
+          "oversized count message: " + analyzer.getLastError());
+
+    check(analyzer.loadSTLFromBytes(toSTL(box())), "reload after a failure");
+    check(analyzer.getLastError().empty(), "a good load clears the previous error");
+
+    check(!analyzer.loadSTL("/nonexistent/geom-core-missing.stl"), "missing file rejected");
+    check(analyzer.getLastError() == "Could not open STL file: /nonexistent/geom-core-missing.stl",
+          "missing file message: " + analyzer.getLastError());
+}
+
 } // namespace
 
 int main() {
     testScalars();
     testIntegrity();
+    testBoundsAndLoadErrors();
+    testBodyConnectivity();
+    testSignedVolume();
     std::printf("%d/%d checks passed\n", checks - failures, checks);
     return failures == 0 ? 0 : 1;
 }

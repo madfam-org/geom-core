@@ -47,11 +47,8 @@ bool Analyzer::loadStep(const std::string& filepath,
     // Use the BRepLoader to load and tessellate the STEP file
     bool success = brep::loadStepFile(filepath, *mesh, linearDeflection, angularDeflection);
 
-    if (success) {
-        std::cout << "Successfully loaded STEP file: " << filepath << std::endl;
-        std::cout << "  Vertices: " << mesh->getVertexCount() << std::endl;
-        std::cout << "  Triangles: " << mesh->getTriangleCount() << std::endl;
-    } else {
+    // A library does not print on success; failures still go to stderr.
+    if (!success) {
         std::cerr << "Failed to load STEP file: " << filepath << std::endl;
     }
 
@@ -82,6 +79,31 @@ Vector3 Analyzer::getBoundingBox() const {
     return mesh->getBoundingBox();
 }
 
+BoundingBox Analyzer::getBounds() const {
+    if (!mesh) return BoundingBox();
+    return mesh->getBounds();
+}
+
+std::string Analyzer::getLastError() const {
+    if (!mesh) return std::string();
+    return mesh->getLastError();
+}
+
+const std::vector<Vector3>& Analyzer::getVertices() const {
+    static const std::vector<Vector3> none;
+    return mesh ? mesh->getVertices() : none;
+}
+
+const std::vector<Triangle>& Analyzer::getFaces() const {
+    static const std::vector<Triangle> none;
+    return mesh ? mesh->getFaces() : none;
+}
+
+double Analyzer::getSignedVolume() const {
+    if (!mesh) return 0.0;
+    return mesh->getSignedVolume();
+}
+
 double Analyzer::getSurfaceArea() const {
     if (!mesh) return 0.0;
     return mesh->getSurfaceArea();
@@ -92,9 +114,9 @@ Vector3 Analyzer::getCentroid() const {
     return mesh->getCentroid();
 }
 
-int Analyzer::getBodyCount() const {
+int Analyzer::getBodyCount(BodyConnectivity mode) const {
     if (!mesh) return 0;
-    return mesh->bodyCount();
+    return mesh->bodyCount(mode);
 }
 
 MeshIntegrity Analyzer::assessIntegrity(const Mesh& target, std::optional<double> scaleHint) {

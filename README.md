@@ -4,7 +4,7 @@
 ![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue)
 ![C++17](https://img.shields.io/badge/c++-17-blue)
 ![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
-![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version 0.2.0](https://img.shields.io/badge/version-0.2.0-blue)
 
 High-performance C++ geometry analysis engine for 3D printing, with Python and WebAssembly bindings.
 
@@ -53,13 +53,13 @@ Release assets (see [Releases and versioning](#releases-and-versioning)).
 
 ```bash
 # Pick the wheel for your platform and Python from the release page
-pip install https://github.com/madfam-org/geom-core/releases/download/v0.1.0/<wheel-file>.whl
+pip install https://github.com/madfam-org/geom-core/releases/download/v0.2.0/<wheel-file>.whl
 ```
 
 ### TypeScript / WASM (from a GitHub Release)
 
 ```bash
-npm install https://github.com/madfam-org/geom-core/releases/download/v0.1.0/madfam-geom-core-0.1.0.tgz
+npm install https://github.com/madfam-org/geom-core/releases/download/v0.2.0/madfam-geom-core-0.2.0.tgz
 ```
 
 ### Build from Source
@@ -131,22 +131,105 @@ print(f"Optimal Up Vector: ({result.optimal_up_vector.x}, "
 ### WebAssembly
 
 ```javascript
-const geomCore = await import('./geom_core.js');
+import createGeomCore from '@madfam/geom-core/wasm';
 
-const analyzer = new geomCore.Analyzer();
-const fileData = new Uint8Array(await file.arrayBuffer());
-analyzer.loadSTLFromBytes(fileData);
+const mod = await createGeomCore();
+const analyzer = new mod.Analyzer();
+analyzer.loadSTLFromBytes(new Uint8Array(await file.arrayBuffer())); // throws GeomCoreSTLError on a bad STL
+
+const { min, max, size } = analyzer.getBoundingBox();
+const vertices = analyzer.getVertices();  // Float64Array [x0, y0, z0, ...] (welded)
+const indices = analyzer.getIndices();    // Uint32Array  [a0, b0, c0, ...]
 
 const report = analyzer.getPrintabilityReport(45.0, 0.8);
 console.log(`Score: ${report.score}`);
 
-const orientation = analyzer.autoOrient();
-console.log(`Improvement: ${orientation.improvementPercent}%`);
-
-// Get visualization data (zero-copy Typed Arrays)
-const overhangMap = analyzer.getOverhangMapJS(45.0);  // Uint8Array
-const wallThickness = analyzer.getWallThicknessMapJS(10.0);  // Float32Array
+// Visualization data (zero-copy typed-array views, see "Typed arrays" below)
+const overhangMap = analyzer.getOverhangMapJS(45.0);       // Uint8Array
+const wallThickness = analyzer.getWallThicknessMapJS(10.0); // Float32Array
+analyzer.delete();
 ```
+
+## Browser usage
+
+`@madfam/geom-core/wasm` is a **single-threaded** ES-module build
+(`USE_PTHREADS=0`, `EXPORT_ES6`, `MODULARIZE`, `ENVIRONMENT=web,worker,node`,
+memory growth on). It needs no `SharedArrayBuffer`, starts no workers and
+therefore needs **no COOP/COEP headers**: it loads on any page, in a worker
+and in Node.
+
+| Export | File | What |
+|---|---|---|
+| `@madfam/geom-core/wasm` | `dist/wasm/index.js` | default entry: `createGeomCore(options)` + `GeomCoreSTLError` |
+| `@madfam/geom-core/wasm-binary` | `dist/wasm/geom-core.wasm` | its `.wasm`, for bundler `?url` imports |
+| `@madfam/geom-core/threaded` | `dist/wasm/threaded.js` | opt-in pthread build (below) |
+| `@madfam/geom-core/threaded/wasm-binary` | `dist/wasm/geom-core-threaded.wasm` | its `.wasm` |
+| `@madfam/geom-core` | `dist/esm`, `dist/cjs` | TypeScript CAD SDK (unchanged) |
+
+The WASM entries are ES modules only (no `require()`; `require.resolve` works).
+`createGeomCore(options)` passes Emscripten module options through:
+`locateFile(path)` maps `"geom-core.wasm"` to the URL to fetch, `wasmBinary`
+supplies the bytes, `print`/`printErr` redirect C++ output.
+
+### Vite
+
+No alias and no server headers are needed:
+
+```ts
+import createGeomCore, { GeomCoreSTLError } from '@madfam/geom-core/wasm';
+import wasmUrl from '@madfam/geom-core/wasm-binary?url';
+
+const mod = await createGeomCore({
+  locateFile: (path) => (path.endsWith('.wasm') ? wasmUrl : path),
+});
+```
+
+The loader also finds its `.wasm` through `new URL('geom-core.wasm',
+import.meta.url)`, which Vite rewrites to the same emitted asset, so
+`locateFile` is optional with Vite; pass it when your bundler does not handle
+that pattern or the `.wasm` is served from elsewhere. CI builds a Vite app this
+way (`tests/wasm/vite-bundle.test.ts`) and checks that it emits the package's
+own `.wasm`, no threaded build and no `new Worker(`.
+
+### Errors are thrown, not returned
+
+`loadSTLFromBytes(data)` and `loadSTL(path)` return `true` or throw
+`GeomCoreSTLError` (`name === 'GeomCoreSTLError'`, `parserMessage` = the C++
+parser's reason, `message` = `geom-core could not read the STL: <reason>`),
+leaving no mesh loaded. `getLastError()` returns the same reason. The WASM
+build no longer writes these to stderr.
+
+### Typed arrays
+
+| Method | Returns | Ownership |
+|---|---|---|
+| `getVertices()` | `Float64Array`, `3 × getVertexCount()` | **copy**, yours to keep |
+| `getIndices()` | `Uint32Array`, `3 × getTriangleCount()` | **copy**, yours to keep |
+| `getVerticesView()`, `getIndicesView()`, `getOverhangMapJS()`, `getWallThicknessMapJS()` | same types | **zero-copy view** into WASM memory |
+
+A view is valid only until the next call that may allocate (memory growth
+detaches it), the next load, or `delete()`; `.slice()` it to keep it.
+Vertices are welded (exact duplicates merged), so `indices` index into a
+shared vertex array, the input manifold-3d and three.js indexed geometry take.
+
+### Threaded variant (`@madfam/geom-core/threaded`)
+
+The same API built with pthreads: shared `WebAssembly.Memory` plus a 4-worker
+pool started at load. Browsers allow shared memory only on
+**cross-origin-isolated** pages, so the host must send
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+(and every subresource must be CORS/CORP-clean). Without `SharedArrayBuffer`,
+or with `crossOriginIsolated === false`, `createGeomCoreThreaded()` rejects at
+once with `GeomCoreThreadingError` instead of hanging in the pool start-up.
+The loader spawns its workers with `new Worker(new URL(..., import.meta.url))`,
+the pattern bundlers rewrite. Today no analysis call is parallelised, so the
+threaded build buys nothing for mesh analysis; use it only when a host is
+already isolated and a future parallel kernel needs it.
 
 ### 3D Viewer (Solarpunk Edition)
 
@@ -201,8 +284,11 @@ See [viewer/README.md](viewer/README.md) for detailed usage instructions.
 ### Build WASM
 
 ```bash
-# Requires Emscripten SDK
-./scripts/build_wasm.sh
+# Requires Emscripten SDK (CI: 6.0.10) and Java 21 for Closure
+./scripts/build_wasm.sh                     # both variants into dist/wasm/
+./scripts/build_wasm.sh --variant single    # default build only (--no-threads is an alias)
+pnpm test:wasm                              # Vitest on the single-threaded build (node + jsdom + Vite)
+pnpm test:wasm:threaded                     # Node smoke test of the threaded build
 ```
 
 ### Run Tests
@@ -230,7 +316,9 @@ The project includes comprehensive tests for all features:
 - `tests/test_version.py`: pyproject.toml, CMake, package.json and `index.ts` agree on the version
 - `tests/test_integrity_differential.py`: integrity, surface area, centroid and body count against the yantra4d reference and trimesh (needs `numpy` and `trimesh`)
 - `tests/native/test_mesh_analysis.cpp`: C++ unit tests, run with `ctest --test-dir build`
-- `tests/wasm/runtime.cjs`: the same checks through the WASM module (CI only; needs Emscripten)
+- `tests/wasm/*.test.ts` (`pnpm test:wasm`, CI only; needs the Emscripten build): the single-threaded WASM in Node against yantra4d's differential fixtures (closed, offset, inside-out, two-body, sphere and sub-threshold meshes; volume 1e-9 relative, bbox and centroid 1e-9 mm), vertex/index round trips, the three malformed STLs, integrity verdicts, the export map, a jsdom page without `SharedArrayBuffer`, and a Vite app build
+- `tests/wasm/threaded-smoke.mjs` (`pnpm test:wasm:threaded`, CI only): the threaded build in Node
+- `tests/wasm-loader.test.ts`, `tests/wasm-types.test.ts` (`pnpm test`): entry-point wrapper logic, and the `MeshIntegrity` TypeScript type against the C++ struct
 
 All tests run automatically via GitHub Actions on every push.
 
@@ -238,10 +326,21 @@ All tests run automatically via GitHub Actions on every push.
 
 ### Analyzer Class
 
+The Python module is `geom_core_py` (there is no `geom_core` package and no
+Python `Mesh` class): build an `Analyzer`, load a file, then query it.
+Module attributes: `__version__`, `has_occt`. Classes: `Analyzer`, `Vector3`,
+`BoundingBox`, `MeshIntegrity`, `PrintabilityReport`, `OrientationResult`.
+
 #### Mesh Loading
-- `load_stl(filepath)`: Load binary STL file
-- `loadSTLFromBytes(data)`: Load from memory (WASM binding only; the Python module has no bytes loader)
-- `load_step(filepath, linear_deflection=0.1, angular_deflection=0.5)`: Load STEP/STP file (requires OCCT)
+
+| C++ (`Analyzer`) | Python (`geom_core_py.Analyzer`) | WASM (`Analyzer`) | Failure |
+|---|---|---|---|
+| `loadSTL(path)` | `load_stl(path)` | `loadSTL(path)` (virtual FS) | C++/Python: `false` + stderr; WASM: throws `GeomCoreSTLError` |
+| `loadSTLFromBytes(data)` | — (no bytes loader) | `loadSTLFromBytes(Uint8Array)` | same |
+| `loadStep(path, linDefl, angDefl)` | `load_step(path, linear_deflection=0.1, angular_deflection=0.5)` | — | `false` (needs OCCT; `has_occt`) |
+| `getLastError()` | — | `getLastError()` | parser message of the last failed STL load |
+
+Loads print nothing on success (0.1.0 printed a "Loaded STL" line to stdout).
 
 #### Mesh Properties
 
@@ -249,15 +348,26 @@ All tests run automatically via GitHub Actions on every push.
 |---|---|---|---|
 | `getVertexCount()` | `get_vertex_count()` | `getVertexCount()` | vertices after exact dedup |
 | `getTriangleCount()` | `get_triangle_count()` | `getTriangleCount()` | triangles |
-| `getVolume()` | `get_volume()` | `getVolume()` | absolute volume, mm³ |
+| `getVolume()` | `get_volume()` | `getVolume()` | **absolute** volume, mm³ (an inside-out solid is positive here) |
+| `getSignedVolume()` | `get_signed_volume()` | `getSignedVolume()` | signed volume, mm³; negative when inside out |
 | `getSurfaceArea()` | `get_surface_area()` | `getSurfaceArea()` | sum of triangle areas, mm² |
-| `getBoundingBox()` | `get_bounding_box()` | `getBoundingBox()` | `Vector3` (width, height, depth) |
+| `getBoundingBox()` | `get_bounding_box()` | — | `Vector3` size (width, height, depth) |
+| `getBounds()` | `get_bounds()` | `getBoundingBox()` | `{min, max, size}` (WASM also keeps the deprecated 0.1.0 `x`/`y`/`z` = size) |
+| — | — | `getVertices()` / `getIndices()` | `Float64Array` / `Uint32Array` copies (views: `getVerticesView()` / `getIndicesView()`) |
 | `getCentroid()` | `get_centroid()` | `getCentroid()` | volumetric centroid `Vector3`; origin when \|volume\| < 1e-9 |
-| `getBodyCount()` | `get_body_count()` | `getBodyCount()` | connected components (faces sharing a vertex) |
+| `getBodyCount(mode)` | `get_body_count(mode="edge")` | `getBodyCount(mode = 'edge')` | connected bodies, see below |
 | `isWatertight()` | `is_watertight()` | `isWatertight()` | plain edge-count check on the mesh as loaded |
 | `assessIntegrity(scaleHint)` | `assess_integrity(scale_hint=None)` | `assessIntegrity(scaleHint)` (`<= 0` = derive) | `MeshIntegrity` |
 
-`Mesh` itself also exposes `getSurfaceArea()`, `getCentroid()`, `bodyCount()`
+**Body count connectivity.** `mode="edge"` (the default since 0.2.0) joins
+faces that share an edge, like `len(trimesh.Trimesh.split(only_watertight=False))`;
+`mode="vertex"` joins faces that share any vertex, which was 0.1.0's only rule
+and matches `trimesh.Trimesh.body_count` (a vertex-graph count) on meshes
+without unreferenced vertices. Two boxes touching at one corner are 2 bodies
+by edge and 1 by vertex; trimesh 5.1.1 reports `split()` = 2 and
+`body_count` = 1 for that mesh. `MeshIntegrity.bodyCount` is edge-connected.
+
+The C++ `Mesh` class (not bound in Python or WASM) also exposes `getSurfaceArea()`, `getCentroid()`, `bodyCount()`
 and `getSignedVolume()`, and `assessMeshIntegrity(mesh, scaleHint)` /
 `Analyzer::assessIntegrity(mesh, scaleHint)` assess any `Mesh`.
 
@@ -277,11 +387,11 @@ so STL float noise is not reported as a hole, and it says which failure it is:
 | `manifold_edges` / `manifoldEdges` | edges shared by exactly two faces |
 | `euler_number` / `eulerNumber` | V − E + F, `None`/`null` for an empty mesh |
 | `winding_consistent` / `windingConsistent` | neighbours traverse shared edges in opposite directions |
-| `volume` | signed volume (trimesh's formula; negative when inside out) |
+| `volume` | signed volume (trimesh's formula; negative when inside out), so an inverted solid fails `inverted` even though `get_volume()` is positive |
 | `merge_tolerance` / `mergeTolerance` | tolerance that sealed the mesh, else `None`/`null` |
 | `degenerate_faces` / `degenerateFaces` | zero-area faces or repeated vertex indices |
 | `inverted` | watertight, consistently wound, negative volume |
-| `body_count` / `bodyCount` | connected bodies |
+| `body_count` / `bodyCount` | connected bodies, faces sharing an edge |
 | `notes`, `summary` | why, in words (the reference's wording, then notes for the added fields) |
 
 `tests/test_integrity_differential.py` checks every reference field, note and

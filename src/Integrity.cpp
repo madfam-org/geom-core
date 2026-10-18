@@ -127,7 +127,7 @@ int bodies(const std::vector<Face>& faces, size_t vertexCount) {
     for (const auto& f : faces) tris.emplace_back(f[0], f[1], f[2]);
     m.setVertices(std::vector<Vector3>(vertexCount));
     m.setTriangles(tris);
-    return m.bodyCount();
+    return m.bodyCount(BodyConnectivity::Edge);
 }
 
 std::string formatG(double value) {
