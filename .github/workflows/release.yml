@@ -74,8 +74,9 @@ jobs:
       run: |
         python -m venv "$RUNNER_TEMP/wheel-venv"
         "$RUNNER_TEMP/wheel-venv/bin/pip" install wheelhouse/*.whl
-        # No build/ directory exists, so the test scripts import the wheel.
-        test ! -d build
+        # Remove the in-tree setuptools/CMake build so the test scripts
+        # (which prefer build/python when present) import the wheel.
+        rm -rf build
         PATH="$RUNNER_TEMP/wheel-venv/bin:$PATH" ./scripts/run_tests.sh
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
