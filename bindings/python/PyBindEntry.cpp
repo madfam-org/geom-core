@@ -1,4 +1,5 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include "geom-core/Analyzer.hpp"
 #include "geom-core/Vector3.hpp"
 
@@ -51,6 +52,38 @@ PYBIND11_MODULE(geom_core_py, m) {
                    " mm², optimized=" + std::to_string(r.optimizedOverhangArea) + " mm²)";
         });
 
+    // MeshIntegrity struct (port of yantra4d mesh_integrity.MeshIntegrity)
+    py::class_<madfam::geom::MeshIntegrity>(m, "MeshIntegrity")
+        .def_readonly("watertight", &madfam::geom::MeshIntegrity::watertight,
+                      "Every edge shared by exactly two faces (as loaded or after merging)")
+        .def_readonly("boundary_edges", &madfam::geom::MeshIntegrity::boundaryEdges,
+                      "Edges used by only one face (holes)")
+        .def_readonly("nonmanifold_edges", &madfam::geom::MeshIntegrity::nonManifoldEdges,
+                      "Edges shared by more than two faces")
+        .def_readonly("manifold_edges", &madfam::geom::MeshIntegrity::manifoldEdges,
+                      "Edges shared by exactly two faces")
+        .def_readonly("euler_number", &madfam::geom::MeshIntegrity::eulerNumber,
+                      "V - E + F of the judged mesh, or None for an empty mesh")
+        .def_readonly("winding_consistent", &madfam::geom::MeshIntegrity::windingConsistent,
+                      "Faces sharing an edge traverse it in opposite directions")
+        .def_readonly("volume", &madfam::geom::MeshIntegrity::volume,
+                      "Signed volume (negative when inside out)")
+        .def_readonly("merge_tolerance", &madfam::geom::MeshIntegrity::mergeTolerance,
+                      "Tolerance that sealed the mesh, or None")
+        .def_readonly("degenerate_faces", &madfam::geom::MeshIntegrity::degenerateFaces,
+                      "Faces with zero area or a repeated vertex")
+        .def_readonly("inverted", &madfam::geom::MeshIntegrity::inverted,
+                      "Watertight, consistently wound and negative volume")
+        .def_readonly("body_count", &madfam::geom::MeshIntegrity::bodyCount,
+                      "Connected components of faces sharing a vertex")
+        .def_readonly("notes", &madfam::geom::MeshIntegrity::notes,
+                      "Why the verdict is what it is")
+        .def_property_readonly("summary", &madfam::geom::MeshIntegrity::summary,
+                               "One-line verdict naming which failure it is")
+        .def("__repr__", [](const madfam::geom::MeshIntegrity& r) {
+            return "MeshIntegrity(" + r.summary() + ")";
+        });
+
     // Vector3 class
     py::class_<madfam::geom::Vector3>(m, "Vector3")
         .def(py::init<>())
@@ -84,6 +117,19 @@ PYBIND11_MODULE(geom_core_py, m) {
              "Check if the loaded mesh is watertight (manifold)")
         .def("get_bounding_box", &madfam::geom::Analyzer::getBoundingBox,
              "Get bounding box dimensions as Vector3(width, height, depth)")
+        .def("get_surface_area", &madfam::geom::Analyzer::getSurfaceArea,
+             "Total surface area of the loaded mesh (mm²)")
+        .def("get_centroid", &madfam::geom::Analyzer::getCentroid,
+             "Volumetric centroid of the loaded mesh as Vector3 (origin if |volume| < 1e-9)")
+        .def("get_body_count", &madfam::geom::Analyzer::getBodyCount,
+             "Number of connected bodies (faces sharing a vertex)")
+        .def("assess_integrity",
+             [](const madfam::geom::Analyzer& self, std::optional<double> scaleHint) {
+                 return self.assessIntegrity(scaleHint);
+             },
+             "Watertight/manifold verdict with evidence; merges coincident vertices "
+             "at a tolerance relative to scale_hint (default: largest bbox dimension)",
+             py::arg("scale_hint") = py::none())
         .def("get_vertex_count", &madfam::geom::Analyzer::getVertexCount,
              "Get number of vertices in the loaded mesh")
         .def("get_triangle_count", &madfam::geom::Analyzer::getTriangleCount,

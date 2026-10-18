@@ -151,6 +151,79 @@ double Mesh::getVolume() const {
     return std::abs(volume / 6.0);
 }
 
+double Mesh::getSignedVolume() const {
+    double sum = 0.0;
+    for (const auto& face : faces) {
+        sum += vertices[face.v0] * (vertices[face.v1] % vertices[face.v2]);
+    }
+    return sum / 6.0;
+}
+
+double Mesh::getSurfaceArea() const {
+    double area = 0.0;
+    for (const auto& face : faces) {
+        const Vector3 e1 = vertices[face.v1] - vertices[face.v0];
+        const Vector3 e2 = vertices[face.v2] - vertices[face.v0];
+        area += 0.5 * (e1 % e2).length();
+    }
+    return area;
+}
+
+Vector3 Mesh::getCentroid() const {
+    double volume = 0.0;
+    double cx = 0.0, cy = 0.0, cz = 0.0;
+    for (const auto& face : faces) {
+        const Vector3& a = vertices[face.v0];
+        const Vector3& b = vertices[face.v1];
+        const Vector3& c = vertices[face.v2];
+        // Tetrahedron (origin, a, b, c): signed volume and centroid (a+b+c)/4.
+        const double v = (a * (b % c)) / 6.0;
+        volume += v;
+        cx += v * (a.x + b.x + c.x) / 4.0;
+        cy += v * (a.y + b.y + c.y) / 4.0;
+        cz += v * (a.z + b.z + c.z) / 4.0;
+    }
+    if (std::abs(volume) < 1e-9) {
+        return Vector3(0, 0, 0);
+    }
+    return Vector3(cx / volume, cy / volume, cz / volume);
+}
+
+namespace {
+int findRoot(std::vector<int>& parent, int i) {
+    while (parent[i] != i) {
+        parent[i] = parent[parent[i]];
+        i = parent[i];
+    }
+    return i;
+}
+} // namespace
+
+int Mesh::bodyCount() const {
+    if (faces.empty()) {
+        return 0;
+    }
+    std::vector<int> parent(vertices.size());
+    for (size_t i = 0; i < parent.size(); ++i) parent[i] = static_cast<int>(i);
+    std::vector<char> referenced(vertices.size(), 0);
+    for (const auto& face : faces) {
+        const int ids[3] = {face.v0, face.v1, face.v2};
+        for (int id : ids) referenced[id] = 1;
+        for (int k = 1; k < 3; ++k) {
+            const int ra = findRoot(parent, ids[0]);
+            const int rb = findRoot(parent, ids[k]);
+            if (ra != rb) parent[rb] = ra;
+        }
+    }
+    int bodies = 0;
+    for (size_t i = 0; i < parent.size(); ++i) {
+        if (referenced[i] && findRoot(parent, static_cast<int>(i)) == static_cast<int>(i)) {
+            ++bodies;
+        }
+    }
+    return bodies;
+}
+
 bool Mesh::isWatertight() const {
     if (faces.empty()) {
         return false;

@@ -50,6 +50,8 @@ class CMakeBuild(build_ext):
             '-DBUILD_PYTHON_BINDINGS=ON',
             '-DBUILD_WASM_BINDINGS=OFF',
             '-DBUILD_SHARED_LIBS=OFF',
+            # The wheel ships the module only; CI runs the C++ tests via ctest.
+            '-DGEOM_BUILD_TESTS=OFF',
         ]
 
         # Configuration (Release by default)
@@ -134,7 +136,8 @@ setup(
     python_requires='>=3.7',
     install_requires=[],
     extras_require={
-        'dev': ['pytest', 'pytest-cov', 'black', 'flake8'],
+        # numpy + trimesh: oracle for tests/test_integrity_differential.py
+        'dev': ['pytest', 'pytest-cov', 'black', 'flake8', 'numpy', 'trimesh'],
     },
     classifiers=[
         'Development Status :: 4 - Beta',

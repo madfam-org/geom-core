@@ -73,7 +73,7 @@ jobs:
     - name: Test the installed wheel outside the build tree
       run: |
         python -m venv "$RUNNER_TEMP/wheel-venv"
-        "$RUNNER_TEMP/wheel-venv/bin/pip" install wheelhouse/*.whl
+        "$RUNNER_TEMP/wheel-venv/bin/pip" install wheelhouse/*.whl numpy trimesh
         # Remove the in-tree setuptools/CMake build so the test scripts
         # (which prefer build/python when present) import the wheel.
         rm -rf build

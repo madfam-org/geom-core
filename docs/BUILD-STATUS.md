@@ -40,7 +40,11 @@ check (`tests/test_version.py`). The former "Documentation Build" job only
 echoed whether README and LICENSE existed and could not fail; it was removed
 because no documentation build (Doxygen, MkDocs) is configured.
 The previous C++ formatting placeholder was not a check; C++ compilation is
-validated by the actual build jobs.
+validated by the actual build jobs, and the native build registers the C++
+unit tests (`tests/native/test_mesh_analysis.cpp`) with CTest, which CI runs
+after the Python build (`GEOM_BUILD_TESTS`, ON by default; wheels turn it off).
+The mesh-integrity port is differential-tested against the yantra4d reference
+(`tests/test_integrity_differential.py`, numpy + trimesh installed in CI only).
 
 JavaScript dependencies are installed from `pnpm-lock.yaml` with pnpm 9.15.0;
 the incomplete checked-in `node_modules` tree is removed. CI checks TypeScript

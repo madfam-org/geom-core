@@ -1,7 +1,9 @@
 #pragma once
 #include <string>
 #include <memory>
+#include <optional>
 #include "Mesh.hpp"
+#include "Integrity.hpp"
 #include "Vector3.hpp"
 #include "Spatial.hpp"
 
@@ -109,6 +111,39 @@ namespace madfam::geom {
          * @return Vector3 containing (width, height, depth)
          */
         Vector3 getBoundingBox() const;
+
+        /**
+         * @brief Total surface area of the loaded mesh (mm² for mm input)
+         */
+        double getSurfaceArea() const;
+
+        /**
+         * @brief Volumetric centroid of the loaded mesh, see Mesh::getCentroid()
+         */
+        Vector3 getCentroid() const;
+
+        /**
+         * @brief Number of connected bodies in the loaded mesh, see Mesh::bodyCount()
+         */
+        int getBodyCount() const;
+
+        /**
+         * @brief Watertight/manifold verdict with evidence for a mesh
+         * @param mesh Mesh to assess
+         * @param scaleHint Characteristic size (mm); absent or 0 uses the
+         *        largest bounding-box dimension. See assessMeshIntegrity().
+         */
+        static MeshIntegrity assessIntegrity(const Mesh& mesh,
+                                             std::optional<double> scaleHint = std::nullopt);
+
+        /**
+         * @brief Watertight/manifold verdict with evidence for the loaded mesh
+         *
+         * Supersedes isWatertight() for a verdict: it merges coincident
+         * vertices at a scale-relative tolerance before judging and reports
+         * boundary vs non-manifold edges, winding and orientation.
+         */
+        MeshIntegrity assessIntegrity(std::optional<double> scaleHint = std::nullopt) const;
 
         /**
          * @brief Get number of vertices in the loaded mesh

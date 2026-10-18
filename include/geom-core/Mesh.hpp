@@ -71,6 +71,35 @@ public:
     Vector3 getBoundingBox() const;
 
     /**
+     * @brief Signed volume from the signed-tetrahedron sum
+     * @return Positive for outward (counter-clockwise) winding, negative for
+     *         an inside-out mesh; meaningful only for a closed surface.
+     */
+    double getSignedVolume() const;
+
+    /**
+     * @brief Total surface area: the sum of triangle areas
+     * @return Area in square units (mm² if input is in mm); 0 when empty
+     */
+    double getSurfaceArea() const;
+
+    /**
+     * @brief Volumetric centroid (centre of mass of a uniform solid)
+     * @return Centroid from signed tetrahedra against the origin, which is
+     *         independent of the winding direction. Returns (0, 0, 0) when
+     *         |signed volume| < 1e-9 (empty or open/flat meshes), matching
+     *         yantra4d's printEstimator.computeCentroid.
+     */
+    Vector3 getCentroid() const;
+
+    /**
+     * @brief Number of connected bodies
+     * @return Connected components of triangles that share a vertex
+     *         (unreferenced vertices are not counted); 0 when empty
+     */
+    int bodyCount() const;
+
+    /**
      * @brief Get the number of vertices in the mesh
      */
     size_t getVertexCount() const { return vertices.size(); }

@@ -82,6 +82,30 @@ Vector3 Analyzer::getBoundingBox() const {
     return mesh->getBoundingBox();
 }
 
+double Analyzer::getSurfaceArea() const {
+    if (!mesh) return 0.0;
+    return mesh->getSurfaceArea();
+}
+
+Vector3 Analyzer::getCentroid() const {
+    if (!mesh) return Vector3(0, 0, 0);
+    return mesh->getCentroid();
+}
+
+int Analyzer::getBodyCount() const {
+    if (!mesh) return 0;
+    return mesh->bodyCount();
+}
+
+MeshIntegrity Analyzer::assessIntegrity(const Mesh& target, std::optional<double> scaleHint) {
+    return assessMeshIntegrity(target, scaleHint);
+}
+
+MeshIntegrity Analyzer::assessIntegrity(std::optional<double> scaleHint) const {
+    if (!mesh) return assessMeshIntegrity(Mesh(), scaleHint);
+    return assessMeshIntegrity(*mesh, scaleHint);
+}
+
 size_t Analyzer::getVertexCount() const {
     if (!mesh) return 0;
     return mesh->getVertexCount();
