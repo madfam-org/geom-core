@@ -93,9 +93,16 @@ int referencedVertexCount(const std::vector<Face>& faces, size_t vertexCount) {
     return count;
 }
 
+// Divergence-theorem volume from the x-component flux, the formula trimesh's
+// mass_properties uses (sum(cross_x * (x0 + x1 + x2)) / 6). For a closed
+// surface it equals the signed-tetrahedron volume; for an open one both are
+// meaningless, and this keeps the number identical to the reference's.
 double signedVolume(const std::vector<Vector3>& v, const std::vector<Face>& faces) {
     double sum = 0.0;
-    for (const auto& f : faces) sum += v[f[0]] * (v[f[1]] % v[f[2]]);
+    for (const auto& f : faces) {
+        const Vector3 cross = (v[f[1]] - v[f[0]]) % (v[f[2]] - v[f[0]]);
+        sum += cross.x * (v[f[0]].x + v[f[1]].x + v[f[2]].x);
+    }
     return sum / 6.0;
 }
 

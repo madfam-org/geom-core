@@ -136,7 +136,8 @@ setup(
     python_requires='>=3.7',
     install_requires=[],
     extras_require={
-        'dev': ['pytest', 'pytest-cov', 'black', 'flake8'],
+        # numpy + trimesh: oracle for tests/test_integrity_differential.py
+        'dev': ['pytest', 'pytest-cov', 'black', 'flake8', 'numpy', 'trimesh'],
     },
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -25,6 +25,10 @@ python3 tests/test_mesh.py
 python3 tests/test_stl_admission.py
 
 echo ""
+echo "Running test_integrity_differential.py (needs numpy + trimesh)..."
+python3 tests/test_integrity_differential.py
+
+echo ""
 echo "Running test_printability.py..."
 python3 tests/test_printability.py
 

@@ -35,7 +35,9 @@ class Mesh;
  *   empty mesh).
  * - windingConsistent: every edge shared by exactly two faces is traversed
  *   in opposite directions by them.
- * - volume: signed volume (negative for an inside-out mesh).
+ * - volume: signed volume (negative for an inside-out mesh), computed with
+ *   trimesh's divergence-theorem formula so it matches the reference even on
+ *   open meshes (where any volume is meaningless).
  * - mergeTolerance: the tolerance (model units) that sealed the mesh, absent
  *   when it was already sealed as loaded or never sealed.
  * Additions:
