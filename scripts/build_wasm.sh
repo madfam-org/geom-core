@@ -296,7 +296,64 @@ export interface GeomCoreCAD {
   healthCheck(): HealthStatus;
 }
 
+// Mesh analysis (bindings/wasm/WasmEntry.cpp): mesh in, numbers out.
+export interface PrintabilityReport {
+  overhangArea: number;
+  overhangPercentage: number;
+  thinWallVertexCount: number;
+  score: number;
+  totalSurfaceArea: number;
+}
+
+export interface OrientationResult {
+  optimalUpVector: Vec3;
+  originalOverhangArea: number;
+  optimizedOverhangArea: number;
+  improvementPercent: number;
+}
+
+/** Port of yantra4d's MeshIntegrity; see include/geom-core/Integrity.hpp. */
+export interface MeshIntegrity {
+  watertight: boolean;
+  boundaryEdges: number;
+  nonManifoldEdges: number;
+  manifoldEdges: number;
+  eulerNumber: number | null;
+  windingConsistent: boolean;
+  /** Signed: negative when the surface is inside out. */
+  volume: number;
+  mergeTolerance: number | null;
+  degenerateFaces: number;
+  inverted: boolean;
+  bodyCount: number;
+  notes: string[];
+  summary: string;
+}
+
+export interface Analyzer {
+  loadSTLFromBytes(data: Uint8Array | string): boolean;
+  loadSTL(path: string): boolean;
+  getVolume(): number;
+  isWatertight(): boolean;
+  getBoundingBox(): Vec3;
+  getVertexCount(): number;
+  getTriangleCount(): number;
+  getSurfaceArea(): number;
+  /** Volumetric centroid; origin when |volume| < 1e-9. */
+  getCentroid(): Vec3;
+  getBodyCount(): number;
+  /** scaleHint <= 0 derives the scale from the largest bounding-box dimension. */
+  assessIntegrity(scaleHint: number): MeshIntegrity;
+  buildSpatialIndex(): void;
+  getPrintabilityReport(criticalAngleDegrees: number, minWallThicknessMM: number): PrintabilityReport;
+  autoOrient(sampleResolution: number, criticalAngleDegrees: number): OrientationResult;
+  getOverhangMapJS(criticalAngleDegrees: number): Uint8Array;
+  getWallThicknessMapJS(maxSearchDistanceMM: number): Float32Array;
+  delete(): void;
+}
+
 export interface GeomCoreModule {
+  Analyzer: new () => Analyzer;
   GeomCoreCAD: new () => GeomCoreCAD;
 }
 

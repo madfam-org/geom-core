@@ -50,6 +50,8 @@ class CMakeBuild(build_ext):
             '-DBUILD_PYTHON_BINDINGS=ON',
             '-DBUILD_WASM_BINDINGS=OFF',
             '-DBUILD_SHARED_LIBS=OFF',
+            # The wheel ships the module only; CI runs the C++ tests via ctest.
+            '-DGEOM_BUILD_TESTS=OFF',
         ]
 
         # Configuration (Release by default)

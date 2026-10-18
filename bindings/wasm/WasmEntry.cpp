@@ -38,6 +38,35 @@ val getWallThicknessMapJS(Analyzer& self, double maxSearchDistanceMM) {
     return val(typed_memory_view(data.size(), data.data()));
 }
 
+/**
+ * @brief Mesh integrity verdict as a plain JS object
+ *
+ * scaleHint <= 0 (or 0) derives the scale from the largest bounding-box
+ * dimension, like the C++ default. eulerNumber and mergeTolerance are null
+ * when absent; notes is an Array of strings.
+ */
+val assessIntegrityJS(const Analyzer& self, double scaleHint) {
+    const MeshIntegrity r = self.assessIntegrity(
+        scaleHint > 0.0 ? std::optional<double>(scaleHint) : std::nullopt);
+    val out = val::object();
+    out.set("watertight", r.watertight);
+    out.set("boundaryEdges", r.boundaryEdges);
+    out.set("nonManifoldEdges", r.nonManifoldEdges);
+    out.set("manifoldEdges", r.manifoldEdges);
+    out.set("eulerNumber", r.eulerNumber ? val(*r.eulerNumber) : val::null());
+    out.set("windingConsistent", r.windingConsistent);
+    out.set("volume", r.volume);
+    out.set("mergeTolerance", r.mergeTolerance ? val(*r.mergeTolerance) : val::null());
+    out.set("degenerateFaces", r.degenerateFaces);
+    out.set("inverted", r.inverted);
+    out.set("bodyCount", r.bodyCount);
+    val notes = val::array();
+    for (const auto& note : r.notes) notes.call<void>("push", note);
+    out.set("notes", notes);
+    out.set("summary", r.summary());
+    return out;
+}
+
 EMSCRIPTEN_BINDINGS(geom_core_module) {
     // PrintabilityReport struct
     value_object<PrintabilityReport>("PrintabilityReport")
@@ -70,6 +99,10 @@ EMSCRIPTEN_BINDINGS(geom_core_module) {
         .function("getBoundingBox", &Analyzer::getBoundingBox)
         .function("getVertexCount", &Analyzer::getVertexCount)
         .function("getTriangleCount", &Analyzer::getTriangleCount)
+        .function("getSurfaceArea", &Analyzer::getSurfaceArea)
+        .function("getCentroid", &Analyzer::getCentroid)
+        .function("getBodyCount", &Analyzer::getBodyCount)
+        .function("assessIntegrity", &assessIntegrityJS)
         .function("buildSpatialIndex", &Analyzer::buildSpatialIndex)
         .function("getPrintabilityReport", &Analyzer::getPrintabilityReport)
         .function("autoOrient", &Analyzer::autoOrient)

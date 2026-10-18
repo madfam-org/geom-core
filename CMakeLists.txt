@@ -89,6 +89,7 @@ endif()
 # Base sources (always included)
 set(CORE_SOURCES
     src/Analyzer.cpp
+    src/Integrity.cpp
     src/Mesh.cpp
     src/Spatial.cpp
 )
@@ -255,6 +256,7 @@ if(BUILD_WASM_BINDINGS)
         # Base module: Primitives, transforms, basic analysis (~2MB)
         add_executable(geom_core_base
             src/Analyzer.cpp
+            src/Integrity.cpp
             src/Mesh.cpp
             src/Spatial.cpp
             src/cad/Primitives.cpp
@@ -313,6 +315,7 @@ if(BUILD_WASM_BINDINGS)
         # Analysis module: Printability, mesh analysis (~2MB)
         add_executable(geom_core_analysis
             src/Analyzer.cpp
+            src/Integrity.cpp
             src/Spatial.cpp
             bindings/wasm/WasmAnalysis.cpp
         )
@@ -390,6 +393,17 @@ if(BUILD_PYTHON_BINDINGS AND NOT EMSCRIPTEN)
     )
 
     message(STATUS "Python bindings enabled")
+endif()
+
+# ===========================================================================
+# Native C++ unit tests (CTest)
+# ===========================================================================
+option(GEOM_BUILD_TESTS "Build the native C++ unit tests" ON)
+if(GEOM_BUILD_TESTS AND NOT EMSCRIPTEN)
+    enable_testing()
+    add_executable(geom_core_tests tests/native/test_mesh_analysis.cpp)
+    target_link_libraries(geom_core_tests PRIVATE geom_core_lib)
+    add_test(NAME mesh_analysis COMMAND geom_core_tests)
 endif()
 
 # ===========================================================================
