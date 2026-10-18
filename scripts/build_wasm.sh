@@ -3,12 +3,18 @@
 # build_wasm.sh - Build geom-core WebAssembly modules
 #
 # Usage:
-#   ./scripts/build_wasm.sh           # Release build, unified module
-#   ./scripts/build_wasm.sh --debug   # Debug build with assertions
-#   ./scripts/build_wasm.sh --split   # Build split modules for lazy loading
-#   ./scripts/build_wasm.sh --occt    # Build with OCCT support (requires OCCT WASM)
+#   ./scripts/build_wasm.sh                     # Release: single-threaded + threaded
+#   ./scripts/build_wasm.sh --variant single    # only the default (no-threads) build
+#   ./scripts/build_wasm.sh --variant threaded  # only the opt-in threaded build
+#   ./scripts/build_wasm.sh --debug             # Debug build with assertions
+#   ./scripts/build_wasm.sh --split             # Build split modules for lazy loading
+#   ./scripts/build_wasm.sh --occt              # Build with OCCT support (requires OCCT WASM)
 #
-
+# Output (dist/wasm/, the npm package's WASM half):
+#   geom-core.js + geom-core.wasm                    single-threaded ES module (default entry)
+#   geom-core-threaded.js + geom-core-threaded.wasm  pthread build (opt-in, needs COOP/COEP)
+#   index.js, threaded.js, loader.js + *.d.ts        package entry points (from src/wasm/)
+#
 set -e
 
 # Colors for output
@@ -24,7 +30,7 @@ PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 # Default options
 BUILD_TYPE="Release"
 SPLIT_MODULES="OFF"
-WASM_THREADS="ON"
+VARIANTS="single threaded"
 WASM_SIMD="ON"
 USE_OCCT="OFF"
 OCCT_WASM_ROOT=""
@@ -40,8 +46,17 @@ while [[ $# -gt 0 ]]; do
             SPLIT_MODULES="ON"
             shift
             ;;
+        --variant)
+            case "$2" in
+                single|threaded) VARIANTS="$2" ;;
+                both) VARIANTS="single threaded" ;;
+                *) echo -e "${RED}Unknown variant: $2 (single|threaded|both)${NC}"; exit 1 ;;
+            esac
+            shift 2
+            ;;
         --no-threads)
-            WASM_THREADS="OFF"
+            # Kept for 0.1.0 callers: same as --variant single.
+            VARIANTS="single"
             shift
             ;;
         --no-simd)
@@ -63,7 +78,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --debug        Build with debug symbols and assertions"
             echo "  --split        Build split modules for lazy loading"
-            echo "  --no-threads   Disable threading (for browsers without SharedArrayBuffer)"
+            echo "  --variant V    single | threaded | both (default: both)"
+            echo "  --no-threads   Same as --variant single"
             echo "  --no-simd      Disable SIMD optimizations"
             echo "  --occt         Enable OCCT support"
             echo "  --occt-root    Path to OCCT WASM build directory"
@@ -83,7 +99,7 @@ echo -e "${BLUE}============================================${NC}"
 echo ""
 echo -e "Build Type:      ${GREEN}$BUILD_TYPE${NC}"
 echo -e "Split Modules:   ${GREEN}$SPLIT_MODULES${NC}"
-echo -e "Threading:       ${GREEN}$WASM_THREADS${NC}"
+echo -e "Variants:        ${GREEN}$VARIANTS${NC}"
 echo -e "SIMD:            ${GREEN}$WASM_SIMD${NC}"
 echo -e "OCCT Support:    ${GREEN}$USE_OCCT${NC}"
 if [[ -n "$OCCT_WASM_ROOT" ]]; then
@@ -108,259 +124,69 @@ EMCC_VERSION=$(emcc --version | head -n1)
 echo -e "Emscripten:      ${GREEN}$EMCC_VERSION${NC}"
 echo ""
 
-# Create build directory
-BUILD_DIR="$PROJECT_ROOT/build/wasm"
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-
-# Configure CMake with Emscripten
-echo -e "${YELLOW}Configuring CMake...${NC}"
-
-CMAKE_ARGS=(
-    -DCMAKE_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
-    -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
-    -DBUILD_WASM_BINDINGS=ON
-    -DBUILD_PYTHON_BINDINGS=OFF
-    -DBUILD_WASM_THREADS="$WASM_THREADS"
-    -DBUILD_WASM_SIMD="$WASM_SIMD"
-    -DSPLIT_WASM_MODULES="$SPLIT_MODULES"
-    -DUSE_OCCT="$USE_OCCT"
-)
-
-if [[ -n "$OCCT_WASM_ROOT" ]]; then
-    CMAKE_ARGS+=(-DOCCT_WASM_ROOT="$OCCT_WASM_ROOT")
-fi
-
-emcmake cmake "${CMAKE_ARGS[@]}" "$PROJECT_ROOT"
-
-# Build
-echo ""
-echo -e "${YELLOW}Building WASM modules...${NC}"
-
-# Use available cores
-CORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-emmake make -j"$CORES"
-
-# Copy output to dist
-echo ""
-echo -e "${YELLOW}Copying to dist...${NC}"
-
 DIST_DIR="$PROJECT_ROOT/dist/wasm"
 mkdir -p "$DIST_DIR"
+CORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
-if [[ "$SPLIT_MODULES" == "ON" ]]; then
-    cp -v "$BUILD_DIR/wasm/geom-core-base.js" "$DIST_DIR/"
-    cp -v "$BUILD_DIR/wasm/geom-core-base.wasm" "$DIST_DIR/"
-    cp -v "$BUILD_DIR/wasm/geom-core-boolean.js" "$DIST_DIR/"
-    cp -v "$BUILD_DIR/wasm/geom-core-boolean.wasm" "$DIST_DIR/"
-    cp -v "$BUILD_DIR/wasm/geom-core-analysis.js" "$DIST_DIR/"
-    cp -v "$BUILD_DIR/wasm/geom-core-analysis.wasm" "$DIST_DIR/"
+build_variant() {
+    local variant="$1" threads base
+    if [[ "$variant" == "threaded" ]]; then threads="ON"; base="geom-core-threaded"; else threads="OFF"; base="geom-core"; fi
 
-    if [[ "$USE_OCCT" == "ON" ]]; then
-        cp -v "$BUILD_DIR/wasm/geom-core-occt.js" "$DIST_DIR/"
-        cp -v "$BUILD_DIR/wasm/geom-core-occt.wasm" "$DIST_DIR/"
+    local build_dir="$PROJECT_ROOT/build/wasm-$variant"
+    mkdir -p "$build_dir"
+    cd "$build_dir"
+
+    echo -e "${YELLOW}Configuring CMake ($variant)...${NC}"
+    local cmake_args=(
+        -DCMAKE_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+        -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+        -DBUILD_WASM_BINDINGS=ON
+        -DBUILD_PYTHON_BINDINGS=OFF
+        -DBUILD_WASM_THREADS="$threads"
+        -DBUILD_WASM_SIMD="$WASM_SIMD"
+        -DSPLIT_WASM_MODULES="$SPLIT_MODULES"
+        -DUSE_OCCT="$USE_OCCT"
+    )
+    if [[ -n "$OCCT_WASM_ROOT" ]]; then
+        cmake_args+=(-DOCCT_WASM_ROOT="$OCCT_WASM_ROOT")
     fi
+    emcmake cmake "${cmake_args[@]}" "$PROJECT_ROOT"
 
-    if [[ "$WASM_THREADS" == "ON" ]]; then
+    echo -e "${YELLOW}Building WASM modules ($variant)...${NC}"
+    emmake make -j"$CORES"
+
+    echo -e "${YELLOW}Copying $variant output to dist...${NC}"
+    if [[ "$SPLIT_MODULES" == "ON" ]]; then
+        for module in geom-core-base geom-core-boolean geom-core-analysis; do
+            cp -v "$build_dir/wasm/$module.js" "$build_dir/wasm/$module.wasm" "$DIST_DIR/"
+        done
+        if [[ "$USE_OCCT" == "ON" ]]; then
+            cp -v "$build_dir/wasm/geom-core-occt.js" "$build_dir/wasm/geom-core-occt.wasm" "$DIST_DIR/"
+        fi
+    else
+        cp -v "$build_dir/wasm/$base.js" "$build_dir/wasm/$base.wasm" "$DIST_DIR/"
+    fi
+    if [[ "$threads" == "ON" ]]; then
         # Emscripten >= 3.1.58 folds the pthread worker into the main .js;
         # older releases emit separate *.worker.js files. Copy them if present.
-        for worker in "$BUILD_DIR/wasm/"*.worker.js; do
+        for worker in "$build_dir/wasm/"*.worker.js "$build_dir/wasm/"*.worker.mjs; do
             if [[ -f "$worker" ]]; then cp -v "$worker" "$DIST_DIR/"; fi
         done
     fi
-else
-    cp -v "$BUILD_DIR/wasm/geom-core.js" "$DIST_DIR/"
-    cp -v "$BUILD_DIR/wasm/geom-core.wasm" "$DIST_DIR/"
+    cd "$PROJECT_ROOT"
+}
 
-    if [[ "$WASM_THREADS" == "ON" ]]; then
-        # Emscripten >= 3.1.58 folds the pthread worker into geom-core.js;
-        # older releases emit a separate geom-core.worker.js. Copy it if present.
-        if [[ -f "$BUILD_DIR/wasm/geom-core.worker.js" ]]; then
-            cp -v "$BUILD_DIR/wasm/geom-core.worker.js" "$DIST_DIR/"
-        fi
-    fi
-fi
+for variant in $VARIANTS; do
+    build_variant "$variant"
+done
 
-# Create TypeScript declarations
+# Package entry points and TypeScript declarations (hand-written, typechecked
+# by `pnpm typecheck`, see src/wasm/). The Emscripten loaders are ES modules,
+# so dist/wasm is marked "type": "module" for Node.
 echo ""
-echo -e "${YELLOW}Creating TypeScript declarations...${NC}"
-
-cat > "$DIST_DIR/geom-core.d.ts" << 'EOF'
-/**
- * geom-core WASM Module Type Definitions
- */
-
-export interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export interface BoundingBox {
-  min: Vec3;
-  max: Vec3;
-}
-
-export interface ShapeHandle {
-  id: string;
-  type: number;
-  bbox: BoundingBox;
-  hash: string;
-  volume?: number;
-  surfaceArea?: number;
-  centerOfMass?: Vec3;
-}
-
-export interface MeshData {
-  positions: Float32Array;
-  normals: Float32Array;
-  indices: Uint32Array;
-  uvs?: Float32Array;
-  vertexCount: number;
-  triangleCount: number;
-  byteSize: number;
-}
-
-export interface OperationResult<T> {
-  success: boolean;
-  value?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
-  durationMs?: number;
-  memoryUsedBytes?: number;
-  wasCached?: boolean;
-}
-
-export interface ComplexityEstimate {
-  score: number;
-  estimatedMs: number;
-  estimatedBytes: number;
-  recommendRemote: boolean;
-}
-
-export interface HealthStatus {
-  healthy: boolean;
-  occtAvailable: boolean;
-  version: string;
-  shapeCount: number;
-  memoryUsedBytes: number;
-  cacheHitRate: number;
-}
-
-export interface GeomCoreCAD {
-  // Lifecycle
-  initialize(): boolean;
-  isInitialized(): boolean;
-  getVersion(): string;
-  shutdown(): void;
-
-  // Primitives
-  makeBox(params?: { width?: number; height?: number; depth?: number; center?: Vec3 }): OperationResult<ShapeHandle>;
-  makeSphere(params?: { radius?: number; center?: Vec3 }): OperationResult<ShapeHandle>;
-  makeCylinder(params?: { radius?: number; height?: number; center?: Vec3; axis?: Vec3 }): OperationResult<ShapeHandle>;
-  makeCone(params?: { radius1?: number; radius2?: number; height?: number; center?: Vec3; axis?: Vec3 }): OperationResult<ShapeHandle>;
-  makeTorus(params?: { majorRadius?: number; minorRadius?: number; center?: Vec3; axis?: Vec3 }): OperationResult<ShapeHandle>;
-
-  // Boolean operations
-  booleanUnion(params: { shapeIds: string[] }): OperationResult<ShapeHandle>;
-  booleanSubtract(params: { baseId: string; toolIds: string[] }): OperationResult<ShapeHandle>;
-  booleanIntersect(params: { shapeIds: string[] }): OperationResult<ShapeHandle>;
-
-  // Transforms
-  translate(params: { shapeId: string; offset: Vec3 }): OperationResult<ShapeHandle>;
-  rotate(params: { shapeId: string; axisOrigin?: Vec3; axisDirection?: Vec3; angle: number }): OperationResult<ShapeHandle>;
-  scale(params: { shapeId: string; center?: Vec3; factor: number }): OperationResult<ShapeHandle>;
-  mirror(params: { shapeId: string; planePoint?: Vec3; planeNormal?: Vec3 }): OperationResult<ShapeHandle>;
-
-  // Analysis
-  tessellate(shapeId: string, options?: { linearDeflection?: number; angularDeflection?: number; computeNormals?: boolean; computeUVs?: boolean }): OperationResult<MeshData>;
-  getVolume(shapeId: string): OperationResult<number>;
-  getSurfaceArea(shapeId: string): OperationResult<number>;
-  getBoundingBox(shapeId: string): OperationResult<BoundingBox>;
-  getCenterOfMass(shapeId: string): OperationResult<Vec3>;
-
-  // Memory management
-  disposeShape(shapeId: string): boolean;
-  disposeAll(): void;
-  getShapeCount(): number;
-  getMemoryUsage(): number;
-  getShapeHandle(shapeId: string): ShapeHandle;
-
-  // Zero-lag optimization
-  estimateComplexity(operation: string, shapeIds: string[]): ComplexityEstimate;
-  precompute(operation: string, shapeIds: string[]): void;
-
-  // Health
-  healthCheck(): HealthStatus;
-}
-
-// Mesh analysis (bindings/wasm/WasmEntry.cpp): mesh in, numbers out.
-export interface PrintabilityReport {
-  overhangArea: number;
-  overhangPercentage: number;
-  thinWallVertexCount: number;
-  score: number;
-  totalSurfaceArea: number;
-}
-
-export interface OrientationResult {
-  optimalUpVector: Vec3;
-  originalOverhangArea: number;
-  optimizedOverhangArea: number;
-  improvementPercent: number;
-}
-
-/** Port of yantra4d's MeshIntegrity; see include/geom-core/Integrity.hpp. */
-export interface MeshIntegrity {
-  watertight: boolean;
-  boundaryEdges: number;
-  nonManifoldEdges: number;
-  manifoldEdges: number;
-  eulerNumber: number | null;
-  windingConsistent: boolean;
-  /** Signed: negative when the surface is inside out. */
-  volume: number;
-  mergeTolerance: number | null;
-  degenerateFaces: number;
-  inverted: boolean;
-  bodyCount: number;
-  notes: string[];
-  summary: string;
-}
-
-export interface Analyzer {
-  loadSTLFromBytes(data: Uint8Array | string): boolean;
-  loadSTL(path: string): boolean;
-  getVolume(): number;
-  isWatertight(): boolean;
-  getBoundingBox(): Vec3;
-  getVertexCount(): number;
-  getTriangleCount(): number;
-  getSurfaceArea(): number;
-  /** Volumetric centroid; origin when |volume| < 1e-9. */
-  getCentroid(): Vec3;
-  getBodyCount(): number;
-  /** scaleHint <= 0 derives the scale from the largest bounding-box dimension. */
-  assessIntegrity(scaleHint: number): MeshIntegrity;
-  buildSpatialIndex(): void;
-  getPrintabilityReport(criticalAngleDegrees: number, minWallThicknessMM: number): PrintabilityReport;
-  autoOrient(sampleResolution: number, criticalAngleDegrees: number): OrientationResult;
-  getOverhangMapJS(criticalAngleDegrees: number): Uint8Array;
-  getWallThicknessMapJS(maxSearchDistanceMM: number): Float32Array;
-  delete(): void;
-}
-
-export interface GeomCoreModule {
-  Analyzer: new () => Analyzer;
-  GeomCoreCAD: new () => GeomCoreCAD;
-}
-
-declare function GeomCore(options?: { locateFile?: (path: string) => string }): Promise<GeomCoreModule>;
-
-export default GeomCore;
-EOF
+echo -e "${YELLOW}Copying entry points and TypeScript declarations...${NC}"
+cp -v "$PROJECT_ROOT"/src/wasm/*.js "$PROJECT_ROOT"/src/wasm/*.d.ts "$DIST_DIR/"
+printf '{"type":"module"}\n' > "$DIST_DIR/package.json"
 
 # Print summary
 echo ""
@@ -369,7 +195,7 @@ echo -e "${GREEN}  Build Complete!${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
 echo "Output files:"
-ls -lh "$DIST_DIR"/*.{js,wasm} 2>/dev/null | while read line; do
+ls -lh "$DIST_DIR"/*.wasm "$DIST_DIR"/geom-core*.js 2>/dev/null | while read line; do
     echo "  $line"
 done
 
@@ -380,23 +206,17 @@ echo -e "Total size: ${GREEN}$TOTAL_SIZE${NC}"
 echo ""
 
 # Usage hints
-echo -e "${BLUE}Usage in browser:${NC}"
+echo -e "${BLUE}Usage in browser (single-threaded, no COOP/COEP needed):${NC}"
 echo ""
-echo "  import GeomCore from '@madfam/geom-core/wasm';"
+echo "  import createGeomCore from '@madfam/geom-core/wasm';"
+echo "  import wasmUrl from '@madfam/geom-core/wasm-binary?url';  // Vite"
 echo ""
-echo "  const module = await GeomCore();"
-echo "  const engine = new module.GeomCoreCAD();"
-echo "  engine.initialize();"
+echo "  const mod = await createGeomCore({ locateFile: (p) => p.endsWith('.wasm') ? wasmUrl : p });"
+echo "  const analyzer = new mod.Analyzer();"
+echo "  analyzer.loadSTLFromBytes(bytes);  // throws GeomCoreSTLError on a bad STL"
 echo ""
-echo "  const box = engine.makeBox({ width: 100, height: 50, depth: 75 });"
-echo "  if (box.success) {"
-echo "    const mesh = engine.tessellate(box.value.id);"
-echo "    // Use mesh.positions, mesh.normals, mesh.indices with Three.js"
-echo "  }"
-echo ""
-
-if [[ "$WASM_THREADS" == "ON" ]]; then
-    echo -e "${YELLOW}Note:${NC} Threading requires these response headers:"
+if [[ "$VARIANTS" == *threaded* ]]; then
+    echo -e "${YELLOW}Note:${NC} @madfam/geom-core/threaded requires these response headers:"
     echo "  Cross-Origin-Embedder-Policy: require-corp"
     echo "  Cross-Origin-Opener-Policy: same-origin"
     echo ""

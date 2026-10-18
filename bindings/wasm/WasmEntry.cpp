@@ -1,6 +1,9 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
+#include <cstdint>
+#include <type_traits>
 #include "geom-core/Analyzer.hpp"
+#include "geom-core/Mesh.hpp"
 #include "geom-core/Vector3.hpp"
 
 using namespace emscripten;
@@ -36,6 +39,74 @@ val getOverhangMapJS(Analyzer& self, double criticalAngleDegrees) {
 val getWallThicknessMapJS(Analyzer& self, double maxSearchDistanceMM) {
     const auto& data = self.calculateWallThicknessMap(maxSearchDistanceMM);
     return val(typed_memory_view(data.size(), data.data()));
+}
+
+// ========================================
+// Mesh data and bounds (0.2.0)
+// ========================================
+
+// The vertex and index views below reinterpret the C++ arrays in place.
+static_assert(std::is_standard_layout_v<Vector3> && sizeof(Vector3) == 3 * sizeof(double),
+              "Vector3 must be three packed doubles for the Float64Array view");
+static_assert(std::is_standard_layout_v<Triangle> && sizeof(Triangle) == 3 * sizeof(int32_t) &&
+                  sizeof(int) == sizeof(uint32_t),
+              "Triangle must be three packed 32-bit indices for the Uint32Array view");
+
+/**
+ * @brief Welded vertex coordinates as a zero-copy Float64Array view
+ *        [x0, y0, z0, x1, ...] into WASM memory.
+ *
+ * The view is only valid until the next call that can allocate (WASM memory
+ * growth detaches it), the next load, or delete(). getVertices() copies.
+ */
+val getVerticesViewJS(const Analyzer& self) {
+    const auto& v = self.getVertices();
+    return val(typed_memory_view(v.size() * 3, reinterpret_cast<const double*>(v.data())));
+}
+
+/**
+ * @brief Triangle indices into the vertex array as a zero-copy Uint32Array
+ *        view [a0, b0, c0, a1, ...]; same lifetime rule as getVerticesView().
+ */
+val getIndicesViewJS(const Analyzer& self) {
+    const auto& f = self.getFaces();
+    return val(typed_memory_view(f.size() * 3, reinterpret_cast<const uint32_t*>(f.data())));
+}
+
+/** @brief Owned Float64Array copy of getVerticesView(). */
+val getVerticesJS(const Analyzer& self) {
+    return val::global("Float64Array").new_(getVerticesViewJS(self));
+}
+
+/** @brief Owned Uint32Array copy of getIndicesView(). */
+val getIndicesJS(const Analyzer& self) {
+    return val::global("Uint32Array").new_(getIndicesViewJS(self));
+}
+
+val vec3JS(const Vector3& v) {
+    val out = val::object();
+    out.set("x", v.x);
+    out.set("y", v.y);
+    out.set("z", v.z);
+    return out;
+}
+
+/**
+ * @brief Bounding box as {min, max, size} plus the 0.1.0 extents x/y/z
+ *
+ * x, y and z equal size.x/y/z; they are kept so 0.1.0 callers that read the
+ * extents keep working, and are deprecated in favour of size.
+ */
+val getBoundingBoxJS(const Analyzer& self) {
+    const BoundingBox b = self.getBounds();
+    val out = val::object();
+    out.set("min", vec3JS(b.min));
+    out.set("max", vec3JS(b.max));
+    out.set("size", vec3JS(b.size));
+    out.set("x", b.size.x);
+    out.set("y", b.size.y);
+    out.set("z", b.size.z);
+    return out;
 }
 
 /**
@@ -92,11 +163,19 @@ EMSCRIPTEN_BINDINGS(geom_core_module) {
     // Analyzer class
     class_<Analyzer>("Analyzer")
         .constructor<>()
-        .function("loadSTLFromBytes", &Analyzer::loadSTLFromBytes)
-        .function("loadSTL", &Analyzer::loadSTL)
+        // Raw boolean loaders. The package entry points (dist/wasm/index.js,
+        // threaded.js) wrap them as loadSTLFromBytes()/loadSTL(), which throw
+        // GeomCoreSTLError with getLastError() instead of returning false.
+        .function("_loadSTLFromBytes", &Analyzer::loadSTLFromBytes)
+        .function("_loadSTL", &Analyzer::loadSTL)
+        .function("getLastError", &Analyzer::getLastError)
         .function("getVolume", &Analyzer::getVolume)
         .function("isWatertight", &Analyzer::isWatertight)
-        .function("getBoundingBox", &Analyzer::getBoundingBox)
+        .function("getBoundingBox", &getBoundingBoxJS)
+        .function("getVertices", &getVerticesJS)
+        .function("getIndices", &getIndicesJS)
+        .function("getVerticesView", &getVerticesViewJS)
+        .function("getIndicesView", &getIndicesViewJS)
         .function("getVertexCount", &Analyzer::getVertexCount)
         .function("getTriangleCount", &Analyzer::getTriangleCount)
         .function("getSurfaceArea", &Analyzer::getSurfaceArea)

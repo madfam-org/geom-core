@@ -206,10 +206,15 @@ endif()
 # WebAssembly Build (Optimized for Zero-Lag)
 # ===========================================================================
 if(BUILD_WASM_BINDINGS)
-    # Base WASM link flags for zero-lag performance
+    # Base WASM link flags. MODULARIZE + EXPORT_ES6: the loader is an ES
+    # module whose default export is a factory taking Emscripten module
+    # options (locateFile, wasmBinary, print, ...). It finds its .wasm via
+    # new URL(..., import.meta.url), which bundlers such as Vite rewrite to an
+    # emitted asset; locateFile overrides that.
     set(WASM_BASE_FLAGS
         "-lembind"
         "-s MODULARIZE=1"
+        "-s EXPORT_ES6=1"
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=67108864"      # 64MB initial
         "-s MAXIMUM_MEMORY=1073741824"    # 1GB max
@@ -222,7 +227,12 @@ if(BUILD_WASM_BINDINGS)
     # Environment flags
     list(APPEND WASM_BASE_FLAGS "-s ENVIRONMENT=web,worker,node")
 
-    # Threading support (requires SharedArrayBuffer)
+    # Threading. OFF (the default npm artefact, dist/wasm/geom-core.*): no
+    # SharedArrayBuffer, no workers, loads on any page. ON (the opt-in
+    # @madfam/geom-core/threaded entry, dist/wasm/geom-core-threaded.*):
+    # shared memory + a 4-worker pthread pool started at load, which browsers
+    # allow only on cross-origin-isolated pages (COOP same-origin +
+    # COEP require-corp).
     if(BUILD_WASM_THREADS)
         list(APPEND WASM_BASE_FLAGS
             "-s USE_PTHREADS=1"
@@ -231,6 +241,10 @@ if(BUILD_WASM_BINDINGS)
         # This is an embind library without main(), not an application to proxy
         # to a pthread. Every object must agree with the shared-memory linker.
         add_compile_options(-pthread)
+        set(GEOM_WASM_OUTPUT_NAME "geom-core-threaded")
+    else()
+        list(APPEND WASM_BASE_FLAGS "-s USE_PTHREADS=0")
+        set(GEOM_WASM_OUTPUT_NAME "geom-core")
     endif()
 
     # SIMD support (90%+ browser coverage)
@@ -355,7 +369,7 @@ if(BUILD_WASM_BINDINGS)
         string(REPLACE ";" " " WASM_FLAGS_STR "${WASM_BASE_FLAGS}")
         set_target_properties(geom_core_wasm PROPERTIES
             LINK_FLAGS "${WASM_FLAGS_STR} -s EXPORT_NAME='GeomCore'"
-            OUTPUT_NAME "geom-core"
+            OUTPUT_NAME "${GEOM_WASM_OUTPUT_NAME}"
             SUFFIX ".js"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/wasm"
         )

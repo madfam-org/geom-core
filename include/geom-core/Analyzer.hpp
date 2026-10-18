@@ -158,6 +158,16 @@ namespace madfam::geom {
         MeshIntegrity assessIntegrity(std::optional<double> scaleHint = std::nullopt) const;
 
         /**
+         * @brief Welded vertices of the loaded mesh (empty when none)
+         */
+        const std::vector<Vector3>& getVertices() const;
+
+        /**
+         * @brief Triangles of the loaded mesh as indices into getVertices()
+         */
+        const std::vector<Triangle>& getFaces() const;
+
+        /**
          * @brief Get number of vertices in the loaded mesh
          */
         size_t getVertexCount() const;

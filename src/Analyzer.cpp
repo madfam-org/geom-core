@@ -92,6 +92,16 @@ std::string Analyzer::getLastError() const {
     return mesh->getLastError();
 }
 
+const std::vector<Vector3>& Analyzer::getVertices() const {
+    static const std::vector<Vector3> none;
+    return mesh ? mesh->getVertices() : none;
+}
+
+const std::vector<Triangle>& Analyzer::getFaces() const {
+    static const std::vector<Triangle> none;
+    return mesh ? mesh->getFaces() : none;
+}
+
 double Analyzer::getSurfaceArea() const {
     if (!mesh) return 0.0;
     return mesh->getSurfaceArea();
