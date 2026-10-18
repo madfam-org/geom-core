@@ -27,7 +27,9 @@ def _read(rel):
 
 def pyproject_version():
     # Same pattern CMakeLists.txt uses, so both parsers agree on the source.
-    found = re.findall(r'^version = "(' + SEMVER + r')"$', _read("pyproject.toml"), re.M)
+    found = re.findall(
+        r'^version = "(' + SEMVER + r')"$', _read("pyproject.toml"), re.M
+    )
     assert len(found) == 1, f"expected one [project] version line, found {found}"
     return found[0]
 
@@ -57,12 +59,12 @@ def test_cmake_derives_version_from_pyproject():
 
 
 def test_no_other_hard_coded_version():
-    assert not re.search(r"version\s*=\s*['\"]" + SEMVER, _read("setup.py")), (
-        "setup.py restates the version; pyproject.toml is the source"
-    )
-    assert not re.search(r"geom-core v" + SEMVER, _read("src/cad/Engine.cpp")), (
-        "Engine.cpp hard-codes a version; use GEOM_CORE_VERSION"
-    )
+    assert not re.search(
+        r"version\s*=\s*['\"]" + SEMVER, _read("setup.py")
+    ), "setup.py restates the version; pyproject.toml is the source"
+    assert not re.search(
+        r"geom-core v" + SEMVER, _read("src/cad/Engine.cpp")
+    ), "Engine.cpp hard-codes a version; use GEOM_CORE_VERSION"
 
 
 def main():

@@ -162,14 +162,22 @@ if [[ "$SPLIT_MODULES" == "ON" ]]; then
     fi
 
     if [[ "$WASM_THREADS" == "ON" ]]; then
-        cp -v "$BUILD_DIR/wasm/"*.worker.js "$DIST_DIR/" 2>/dev/null || true
+        # Emscripten >= 3.1.58 folds the pthread worker into the main .js;
+        # older releases emit separate *.worker.js files. Copy them if present.
+        for worker in "$BUILD_DIR/wasm/"*.worker.js; do
+            if [[ -f "$worker" ]]; then cp -v "$worker" "$DIST_DIR/"; fi
+        done
     fi
 else
     cp -v "$BUILD_DIR/wasm/geom-core.js" "$DIST_DIR/"
     cp -v "$BUILD_DIR/wasm/geom-core.wasm" "$DIST_DIR/"
 
     if [[ "$WASM_THREADS" == "ON" ]]; then
-        cp -v "$BUILD_DIR/wasm/geom-core.worker.js" "$DIST_DIR/" 2>/dev/null || true
+        # Emscripten >= 3.1.58 folds the pthread worker into geom-core.js;
+        # older releases emit a separate geom-core.worker.js. Copy it if present.
+        if [[ -f "$BUILD_DIR/wasm/geom-core.worker.js" ]]; then
+            cp -v "$BUILD_DIR/wasm/geom-core.worker.js" "$DIST_DIR/"
+        fi
     fi
 fi
 
