@@ -14,6 +14,23 @@ operation returns an explicit `OCCT_UNAVAILABLE`/`NOT_IMPLEMENTED` error. See
 [build and verification boundaries](docs/BUILD-STATUS.md); mesh-analysis test
 results do not validate CAD authoring.
 
+## What geom-core is and is not
+
+geom-core is the shared mesh-analysis layer of the MADFAM geometry factories:
+**mesh in, numbers out**. One C++17 implementation, shipped as a Python module
+and a WASM/TypeScript package.
+
+| geom-core does | geom-core does not |
+|---|---|
+| Parse binary STL (STEP through optional OCCT) | Generate solids, patterns or sheets (yantra4d, fashion-cabinet, pliego kernels) |
+| Watertight/manifold integrity with evidence, volume, surface area, bounding box, centroid, body count | Know a manifest, a contract or conformance rule (hyperobjects-spec) |
+| Printability: overhang, wall thickness, auto-orientation | Know a price, a tier or a quote (Cotiza, Dhanam) |
+| Per-triangle/per-vertex maps for visualisation | Serve HTTP, hold catalog state or authorise anyone |
+| | Browser CSG (manifold-3d) or format conversion (trimesh) |
+
+Consumers integrate it behind a feature flag with their current code as the
+differential oracle; see [Adoption plan (R8)](#adoption-plan-r8).
+
 ## Features
 
 - **Zero Dependencies**: Core library uses only C++17 standard library for lightweight builds
@@ -211,6 +228,9 @@ The project includes comprehensive tests for all features:
 - `tests/test_auto_orient.py`: Auto-orientation (Milestone 5)
 - `tests/test_step.py`: STEP file loading API (Milestone 7)
 - `tests/test_version.py`: pyproject.toml, CMake, package.json and `index.ts` agree on the version
+- `tests/test_integrity_differential.py`: integrity, surface area, centroid and body count against the yantra4d reference and trimesh (needs `numpy` and `trimesh`)
+- `tests/native/test_mesh_analysis.cpp`: C++ unit tests, run with `ctest --test-dir build`
+- `tests/wasm/runtime.cjs`: the same checks through the WASM module (CI only; needs Emscripten)
 
 All tests run automatically via GitHub Actions on every push.
 
@@ -224,11 +244,48 @@ All tests run automatically via GitHub Actions on every push.
 - `load_step(filepath, linear_deflection=0.1, angular_deflection=0.5)`: Load STEP/STP file (requires OCCT)
 
 #### Mesh Properties
-- `get_vertex_count()`: Number of vertices
-- `get_triangle_count()`: Number of triangles
-- `get_volume()`: Volume in mm³
-- `is_watertight()`: Check if mesh is manifold
-- `get_bounding_box()`: Get dimensions as Vector3
+
+| C++ (`Analyzer`) | Python (`geom_core_py.Analyzer`) | WASM (`Analyzer`) | Returns |
+|---|---|---|---|
+| `getVertexCount()` | `get_vertex_count()` | `getVertexCount()` | vertices after exact dedup |
+| `getTriangleCount()` | `get_triangle_count()` | `getTriangleCount()` | triangles |
+| `getVolume()` | `get_volume()` | `getVolume()` | absolute volume, mm³ |
+| `getSurfaceArea()` | `get_surface_area()` | `getSurfaceArea()` | sum of triangle areas, mm² |
+| `getBoundingBox()` | `get_bounding_box()` | `getBoundingBox()` | `Vector3` (width, height, depth) |
+| `getCentroid()` | `get_centroid()` | `getCentroid()` | volumetric centroid `Vector3`; origin when \|volume\| < 1e-9 |
+| `getBodyCount()` | `get_body_count()` | `getBodyCount()` | connected components (faces sharing a vertex) |
+| `isWatertight()` | `is_watertight()` | `isWatertight()` | plain edge-count check on the mesh as loaded |
+| `assessIntegrity(scaleHint)` | `assess_integrity(scale_hint=None)` | `assessIntegrity(scaleHint)` (`<= 0` = derive) | `MeshIntegrity` |
+
+`Mesh` itself also exposes `getSurfaceArea()`, `getCentroid()`, `bodyCount()`
+and `getSignedVolume()`, and `assessMeshIntegrity(mesh, scaleHint)` /
+`Analyzer::assessIntegrity(mesh, scaleHint)` assess any `Mesh`.
+
+#### Mesh integrity (`MeshIntegrity`)
+
+A port of yantra4d's `mesh_integrity.assess` (relicensed; see the header of
+`include/geom-core/Integrity.hpp`). It merges coincident vertices at
+tolerances relative to the model's scale (`scale_hint`, default the largest
+bounding-box dimension; tried at 1e-8, 1e-7, 1e-6, 1e-5 of it) before judging,
+so STL float noise is not reported as a hole, and it says which failure it is:
+
+| Field (Python / WASM) | Meaning |
+|---|---|
+| `watertight` | every edge shared by exactly two faces, as loaded or after the merge |
+| `boundary_edges` / `boundaryEdges` | edges used by one face (holes) |
+| `nonmanifold_edges` / `nonManifoldEdges` | edges shared by three or more faces (self-touching, e.g. boolean leftovers) |
+| `manifold_edges` / `manifoldEdges` | edges shared by exactly two faces |
+| `euler_number` / `eulerNumber` | V − E + F, `None`/`null` for an empty mesh |
+| `winding_consistent` / `windingConsistent` | neighbours traverse shared edges in opposite directions |
+| `volume` | signed volume (trimesh's formula; negative when inside out) |
+| `merge_tolerance` / `mergeTolerance` | tolerance that sealed the mesh, else `None`/`null` |
+| `degenerate_faces` / `degenerateFaces` | zero-area faces or repeated vertex indices |
+| `inverted` | watertight, consistently wound, negative volume |
+| `body_count` / `bodyCount` | connected bodies |
+| `notes`, `summary` | why, in words (the reference's wording, then notes for the added fields) |
+
+`tests/test_integrity_differential.py` checks every reference field, note and
+summary against a copy of the yantra4d algorithm on trimesh-generated fixtures.
 
 #### Printability
 - `build_spatial_index()`: Build AABB tree for analysis
@@ -236,6 +293,7 @@ All tests run automatically via GitHub Actions on every push.
 - `auto_orient(sample_resolution, critical_angle)`: Find optimal orientation
 
 #### Visualization Data Export (Milestone 8)
+- C++ only (`calculateOverhangMap`, `calculateWallThicknessMap`; not bound in Python):
 - `calculate_overhang_map(critical_angle)`: Get per-triangle overhang classification
   - Returns: `std::vector<uint8_t>` (0=safe, 1=overhang, 2=ground)
 - `calculate_wall_thickness_map(max_distance)`: Get per-vertex wall thickness
