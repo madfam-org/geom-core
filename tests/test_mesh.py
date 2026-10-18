@@ -255,6 +255,31 @@ def test_bounding_box():
             os.remove(temp_file)
 
 
+def test_bounds_min_max():
+    """get_bounds() reports both corners and the size (additive in 0.2.0)."""
+    print("\nTesting bounds min/max...")
+
+    empty = geom_core_py.Analyzer().get_bounds()
+    assert (empty.min.x, empty.max.y, empty.size.z) == (0.0, 0.0, 0.0)
+
+    with tempfile.NamedTemporaryFile(suffix=".stl", delete=False) as f:
+        temp_file = f.name
+
+    try:
+        write_binary_stl_cube(temp_file, size=10.0)
+        analyzer = geom_core_py.Analyzer()
+        assert analyzer.load_stl(temp_file)
+        bounds = analyzer.get_bounds()
+        for corner, expected in ((bounds.min, -5.0), (bounds.max, 5.0), (bounds.size, 10.0)):
+            assert (corner.x, corner.y, corner.z) == (expected, expected, expected), bounds
+        old = analyzer.get_bounding_box()
+        assert (old.x, old.y, old.z) == (bounds.size.x, bounds.size.y, bounds.size.z)
+        print(f"  ✓ {bounds!r}")
+    finally:
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+
+
 def test_module_version():
     """The compiled module reports the pyproject.toml version via CMake."""
     print("\nTesting module __version__...")
@@ -279,6 +304,7 @@ def main():
         test_cube_volume()
         test_watertight()
         test_bounding_box()
+        test_bounds_min_max()
         test_module_version()
 
         print("\n" + "=" * 60)

@@ -11,24 +11,33 @@
 
 namespace madfam::geom {
 
+bool Mesh::failLoad(const std::string& message) {
+    clear();
+    lastError = message;
+#ifndef __EMSCRIPTEN__
+    // Native callers (Python, C++) keep the historical stderr diagnostics.
+    std::cerr << "Error: " << message << std::endl;
+#endif
+    return false;
+}
+
 bool Mesh::loadFromSTL(const std::string& filepath) {
     clear();
+    lastError.clear();
     // Read entire file into memory
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open STL file: " << filepath << std::endl;
-        return false;
+        return failLoad("Could not open STL file: " + filepath);
     }
 
     // Get file size and read into buffer
     std::streamsize size = file.tellg();
-    if (size < 84) return false;
+    if (size < 84) return failLoad("STL buffer too small (< 84 bytes)");
     file.seekg(0, std::ios::beg);
 
     std::vector<char> buffer(size);
     if (!file.read(buffer.data(), size)) {
-        std::cerr << "Error: Failed to read STL file: " << filepath << std::endl;
-        return false;
+        return failLoad("Failed to read STL file: " + filepath);
     }
 
     file.close();
@@ -40,11 +49,11 @@ bool Mesh::loadFromSTL(const std::string& filepath) {
 bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     // Clear existing data
     clear();
+    lastError.clear();
 
     // Validate minimum size (80-byte header + 4-byte count)
     if (!buffer || size < 84) {
-        std::cerr << "Error: STL buffer too small (< 84 bytes)" << std::endl;
-        return false;
+        return failLoad("STL buffer too small (< 84 bytes)");
     }
 
     // Read 80-byte header (skip it)
@@ -59,8 +68,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     // uint32 count by 50 first can wrap and admit a tiny malicious buffer.
     if (triangleCount > (size - 84) / 50 ||
         triangleCount > static_cast<size_t>(std::numeric_limits<int>::max()) / 3) {
-        std::cerr << "Error: STL triangle count exceeds the buffer or index capacity" << std::endl;
-        return false;
+        return failLoad("STL triangle count exceeds the buffer or index capacity");
     }
 
     // Map to deduplicate vertices: vertex -> index
@@ -74,8 +82,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
     for (uint32_t i = 0; i < triangleCount; ++i) {
         // Check if we have enough data left
         if (offset + 50 > size) {
-            std::cerr << "Error: Unexpected end of STL buffer at triangle " << i << std::endl;
-            return false;
+            return failLoad("Unexpected end of STL buffer at triangle " + std::to_string(i));
         }
 
         // Read normal vector (12 bytes) - we'll skip it
@@ -90,9 +97,7 @@ bool Mesh::loadFromSTLBuffer(const char* buffer, size_t size) {
 
             if (!std::isfinite(coords[0]) || !std::isfinite(coords[1]) ||
                 !std::isfinite(coords[2])) {
-                clear();
-                std::cerr << "Error: STL contains non-finite coordinates" << std::endl;
-                return false;
+                return failLoad("STL contains non-finite coordinates");
             }
             Vector3 vertex(coords[0], coords[1], coords[2]);
 
@@ -266,8 +271,13 @@ bool Mesh::isWatertight() const {
 }
 
 Vector3 Mesh::getBoundingBox() const {
+    return getBounds().size;
+}
+
+BoundingBox Mesh::getBounds() const {
+    BoundingBox box;
     if (vertices.empty()) {
-        return Vector3(0, 0, 0);
+        return box;
     }
 
     double minX = std::numeric_limits<double>::max();
@@ -286,7 +296,10 @@ Vector3 Mesh::getBoundingBox() const {
         maxZ = std::max(maxZ, vertex.z);
     }
 
-    return Vector3(maxX - minX, maxY - minY, maxZ - minZ);
+    box.min = Vector3(minX, minY, minZ);
+    box.max = Vector3(maxX, maxY, maxZ);
+    box.size = Vector3(maxX - minX, maxY - minY, maxZ - minZ);
+    return box;
 }
 
 void Mesh::clear() {

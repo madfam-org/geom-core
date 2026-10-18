@@ -108,9 +108,21 @@ namespace madfam::geom {
 
         /**
          * @brief Get bounding box dimensions
-         * @return Vector3 containing (width, height, depth)
+         * @return Vector3 containing (width, height, depth); see getBounds()
          */
         Vector3 getBoundingBox() const;
+
+        /**
+         * @brief Axis-aligned bounding box: min and max corners plus size
+         * @return All zero when no mesh is loaded
+         */
+        BoundingBox getBounds() const;
+
+        /**
+         * @brief Parser message of the last failed loadSTL()/loadSTLFromBytes()
+         * @return "" when the last load succeeded (or nothing was loaded)
+         */
+        std::string getLastError() const;
 
         /**
          * @brief Total surface area of the loaded mesh (mm² for mm input)

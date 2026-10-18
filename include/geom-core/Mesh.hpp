@@ -16,6 +16,18 @@ struct Triangle {
 };
 
 /**
+ * @brief Axis-aligned bounding box of a mesh
+ *
+ * min and max are the corner coordinates; size = max - min (width, height,
+ * depth). All three are (0, 0, 0) for an empty mesh.
+ */
+struct BoundingBox {
+    Vector3 min;
+    Vector3 max;
+    Vector3 size;
+};
+
+/**
  * @brief Triangular mesh data structure
  *
  * Stores vertices and faces for efficient topology analysis.
@@ -66,9 +78,24 @@ public:
 
     /**
      * @brief Get bounding box dimensions
-     * @return Vector3 containing (width, height, depth)
+     * @return Vector3 containing (width, height, depth); same as getBounds().size
      */
     Vector3 getBoundingBox() const;
+
+    /**
+     * @brief Axis-aligned bounding box with its corners
+     * @return min, max and size (max - min); all zero when the mesh is empty
+     */
+    BoundingBox getBounds() const;
+
+    /**
+     * @brief Why the last loadFromSTL()/loadFromSTLBuffer() call failed
+     * @return The parser message, or "" when the last load succeeded
+     *
+     * Native builds also print the message to stderr (as before); WASM
+     * builds do not, and the JS binding throws it instead.
+     */
+    const std::string& getLastError() const { return lastError; }
 
     /**
      * @brief Signed volume from the signed-tetrahedron sum
@@ -139,6 +166,10 @@ public:
 private:
     std::vector<Vector3> vertices;
     std::vector<Triangle> faces;
+    std::string lastError;
+
+    // Record a load failure: clears the mesh, stores the message, returns false.
+    bool failLoad(const std::string& message);
 };
 
 } // namespace madfam::geom

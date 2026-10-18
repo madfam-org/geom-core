@@ -98,6 +98,20 @@ PYBIND11_MODULE(geom_core_py, m) {
                    std::to_string(v.y) + ", " + std::to_string(v.z) + ")";
         });
 
+    // BoundingBox struct: corners plus size (added in 0.2.0)
+    py::class_<madfam::geom::BoundingBox>(m, "BoundingBox")
+        .def_readonly("min", &madfam::geom::BoundingBox::min, "Minimum corner (mm)")
+        .def_readonly("max", &madfam::geom::BoundingBox::max, "Maximum corner (mm)")
+        .def_readonly("size", &madfam::geom::BoundingBox::size,
+                      "max - min: (width, height, depth), same as get_bounding_box()")
+        .def("__repr__", [](const madfam::geom::BoundingBox& b) {
+            auto v = [](const madfam::geom::Vector3& p) {
+                return "(" + std::to_string(p.x) + ", " + std::to_string(p.y) + ", " +
+                       std::to_string(p.z) + ")";
+            };
+            return "BoundingBox(min=" + v(b.min) + ", max=" + v(b.max) + ", size=" + v(b.size) + ")";
+        });
+
     // Analyzer class
     py::class_<madfam::geom::Analyzer>(m, "Analyzer")
         .def(py::init<>())
@@ -117,6 +131,8 @@ PYBIND11_MODULE(geom_core_py, m) {
              "Check if the loaded mesh is watertight (manifold)")
         .def("get_bounding_box", &madfam::geom::Analyzer::getBoundingBox,
              "Get bounding box dimensions as Vector3(width, height, depth)")
+        .def("get_bounds", &madfam::geom::Analyzer::getBounds,
+             "Axis-aligned bounding box as BoundingBox(min, max, size); all zero when empty")
         .def("get_surface_area", &madfam::geom::Analyzer::getSurfaceArea,
              "Total surface area of the loaded mesh (mm²)")
         .def("get_centroid", &madfam::geom::Analyzer::getCentroid,

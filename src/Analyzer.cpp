@@ -82,6 +82,16 @@ Vector3 Analyzer::getBoundingBox() const {
     return mesh->getBoundingBox();
 }
 
+BoundingBox Analyzer::getBounds() const {
+    if (!mesh) return BoundingBox();
+    return mesh->getBounds();
+}
+
+std::string Analyzer::getLastError() const {
+    if (!mesh) return std::string();
+    return mesh->getLastError();
+}
+
 double Analyzer::getSurfaceArea() const {
     if (!mesh) return 0.0;
     return mesh->getSurfaceArea();
