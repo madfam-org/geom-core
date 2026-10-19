@@ -523,8 +523,8 @@ the artefacts on the workflow run). It builds and tests:
 
 - Python wheels plus an sdist: Linux x86_64 for Python 3.8–3.12, built by
   `cibuildwheel` in the `manylinux_2_28` image and repaired by `auditwheel`
-  (tag `manylinux_2_28_x86_64`: any glibc ≥ 2.28, e.g. Debian bookworm and
-  trixie, Ubuntu 20.04+), and macOS `universal2` (arm64 + x86_64) for
+  (tags `manylinux_2_27_x86_64.manylinux_2_28_x86_64`: Debian bookworm and
+  trixie, Ubuntu 20.04+, RHEL 8+), and macOS `universal2` (arm64 + x86_64) for
   3.10–3.12. Wheels are built **without OCCT** (`has_occt` is `False`; STEP
   loading is unavailable in released wheels). Releases up to 0.2.0 shipped
   plain `linux_x86_64` Linux wheels built on Ubuntu 24.04, which need

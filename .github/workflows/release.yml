@@ -103,9 +103,12 @@ jobs:
         if-no-files-found: error
 
   # Linux x86_64 wheels for cp38–cp312, built in the manylinux_2_28 image
-  # (AlmaLinux 8, glibc 2.28) and repaired by auditwheel, so they carry the
-  # manylinux_2_28_x86_64 tag: they install on any glibc >= 2.28 (Debian
-  # bookworm and trixie, Ubuntu 20.04+, RHEL 8+) and are uploadable to PyPI.
+  # (AlmaLinux 8) and repaired by auditwheel, so they carry the
+  # manylinux_2_28_x86_64 tag (auditwheel also adds manylinux_2_27, the lowest
+  # glibc the extension needs): they install on Debian bookworm and trixie,
+  # Ubuntu 20.04+ and RHEL 8+, and are uploadable to PyPI. The dry run of
+  # 2026-10-19 measured GLIBCXX_3.4.21 / GLIBC_2.14 as the highest symbol
+  # versions the repaired extension references.
   # Until 0.2.0 the Linux wheels were built on the runner (Ubuntu 24.04) with
   # the plain linux_x86_64 tag and needed GLIBCXX_3.4.32 / GLIBC_2.32, i.e. a
   # base image at least as new as Debian trixie.
@@ -133,12 +136,20 @@ jobs:
         ls -l wheelhouse
         count=0
         for wheel in wheelhouse/*.whl; do
-          tag=$(unzip -p "$wheel" '*.dist-info/WHEEL' | sed -n 's/^Tag: //p')
-          echo "$(basename "$wheel"): $tag"
-          case "$tag" in
-            *-manylinux_2_28_x86_64) count=$((count + 1)) ;;
-            *) echo "::error::$(basename "$wheel") is tagged $tag, not manylinux_2_28_x86_64"; exit 1 ;;
+          name=$(basename "$wheel")
+          # auditwheel may add an older compatible tag too (for example
+          # manylinux_2_27_x86_64.manylinux_2_28_x86_64); every Tag line must
+          # be a manylinux one and manylinux_2_28 must be among them.
+          tags=$(unzip -p "$wheel" '*.dist-info/WHEEL' | sed -n 's/^Tag: //p')
+          echo "$name:" $tags
+          case "$name" in
+            *manylinux_2_28_x86_64.whl) ;;
+            *) echo "::error::$name is not tagged manylinux_2_28_x86_64"; exit 1 ;;
           esac
+          if grep -qv -- '-manylinux_2_[0-9]*_x86_64$' <<< "$tags"; then
+            echo "::error::$name has a non-manylinux tag: $tags"; exit 1
+          fi
+          count=$((count + 1))
         done
         test "$count" -eq 5 || { echo "::error::expected 5 Linux wheels (cp38-cp312), got $count"; exit 1; }
         python3 -m pip install --quiet auditwheel
