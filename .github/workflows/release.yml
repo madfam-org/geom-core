@@ -42,12 +42,10 @@ jobs:
           exit 1
         fi
 
-  # Same OS/Python matrix as ci.yml python-build (cp38-cp312; macOS
-  # wheels carry arm64 + x86_64 slices). Wheels are built without
-  # OCCT so they do not link a runner's system OpenCASCADE; STEP loading
-  # reports has_occt == False in released wheels. Linux wheels carry the
-  # plain linux_x86_64 tag (not manylinux): installable from the Release
-  # URL on a compatible glibc, not uploadable to PyPI as-is.
+  # macOS wheels (py3.10–3.12) carry arm64 + x86_64 slices. Linux wheels come
+  # from the `wheels-linux` job below (cibuildwheel, manylinux_2_28). Wheels
+  # are built without OCCT so they do not link a runner's system
+  # OpenCASCADE; STEP loading reports has_occt == False in released wheels.
   wheels:
     name: Wheel (${{ matrix.os }}, py${{ matrix.python-version }})
     needs: version
@@ -55,13 +53,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
-        exclude:
-          - os: macos-latest
-            python-version: '3.8'
-          - os: macos-latest
-            python-version: '3.9'
+        os: [macos-latest]
+        python-version: ['3.10', '3.11', '3.12']
     steps:
     - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
     - uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4.9.1
@@ -106,6 +99,64 @@ jobs:
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: wheel-${{ matrix.os }}-${{ matrix.python-version }}
+        path: wheelhouse/*.whl
+        if-no-files-found: error
+
+  # Linux x86_64 wheels for cp38–cp312, built in the manylinux_2_28 image
+  # (AlmaLinux 8) and repaired by auditwheel, so they carry the
+  # manylinux_2_28_x86_64 tag (auditwheel also adds manylinux_2_27, the lowest
+  # glibc the extension needs): they install on Debian bookworm and trixie,
+  # Ubuntu 20.04+ and RHEL 8+, and are uploadable to PyPI. The dry run of
+  # 2026-10-19 measured GLIBCXX_3.4.21 / GLIBC_2.14 as the highest symbol
+  # versions the repaired extension references.
+  # Until 0.2.0 the Linux wheels were built on the runner (Ubuntu 24.04) with
+  # the plain linux_x86_64 tag and needed GLIBCXX_3.4.32 / GLIBC_2.32, i.e. a
+  # base image at least as new as Debian trixie.
+  wheels-linux:
+    name: Wheels (Linux, manylinux_2_28, cp38-cp312)
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: pypa/cibuildwheel@c923d83ad9c1bc00211c5041d0c3f73294ff88f6 # v3.1.4
+      with:
+        output-dir: wheelhouse
+      env:
+        CIBW_BUILD: cp38-manylinux_x86_64 cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64
+        CIBW_ARCHS_LINUX: x86_64
+        CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+        CIBW_BUILD_VERBOSITY: 1
+        # The same suite the macOS leg runs, against the installed wheel: the
+        # in-tree build/ is removed so run_tests.sh cannot import it instead.
+        CIBW_TEST_REQUIRES: numpy trimesh
+        CIBW_TEST_COMMAND: cd {project} && rm -rf build && ./scripts/run_tests.sh
+    - name: Every Linux wheel is manylinux_2_28 and none is plain linux_x86_64
+      run: |
+        set -euo pipefail
+        ls -l wheelhouse
+        count=0
+        for wheel in wheelhouse/*.whl; do
+          name=$(basename "$wheel")
+          # auditwheel may add an older compatible tag too (for example
+          # manylinux_2_27_x86_64.manylinux_2_28_x86_64); every Tag line must
+          # be a manylinux one and manylinux_2_28 must be among them.
+          tags=$(unzip -p "$wheel" '*.dist-info/WHEEL' | sed -n 's/^Tag: //p')
+          echo "$name:" $tags
+          case "$name" in
+            *manylinux_2_28_x86_64.whl) ;;
+            *) echo "::error::$name is not tagged manylinux_2_28_x86_64"; exit 1 ;;
+          esac
+          if grep -qv -- '-manylinux_2_[0-9]*_x86_64$' <<< "$tags"; then
+            echo "::error::$name has a non-manylinux tag: $tags"; exit 1
+          fi
+          count=$((count + 1))
+        done
+        test "$count" -eq 5 || { echo "::error::expected 5 Linux wheels (cp38-cp312), got $count"; exit 1; }
+        python3 -m pip install --quiet auditwheel
+        for wheel in wheelhouse/*.whl; do python3 -m auditwheel show "$wheel"; done
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: wheel-linux-manylinux_2_28
         path: wheelhouse/*.whl
         if-no-files-found: error
 
@@ -191,7 +242,7 @@ jobs:
   release:
     name: Attach artefacts to the GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [version, wheels, sdist, npm-tarball]
+    needs: [version, wheels, wheels-linux, sdist, npm-tarball]
     runs-on: ubuntu-latest
     permissions:
       contents: write
