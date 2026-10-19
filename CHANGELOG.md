@@ -29,14 +29,97 @@ in Python) could not use 0.1.0 as shipped; this release fixes what they hit.
   success. The WASM build no longer writes parser errors to stderr.
 - **WASM `getBoundingBox()` shape widened** to `{min, max, size}`. The 0.1.0
   extents `x`/`y`/`z` are still present (equal to `size`) and deprecated.
-- **Body count is edge-connected by default** (faces sharing an edge, like
-  `trimesh.split()`); 0.1.0 joined faces sharing any vertex. Affects
+- **Body count is edge-connected by default** (faces sharing an edge; like
+  `trimesh.split()` on manifold meshes, but unlike it an edge used by three
+  or more faces also joins them, see "Open: the body-count definition"
+  below); 0.1.0 joined faces sharing any vertex. Affects
   `Mesh::bodyCount()`, `Analyzer::getBodyCount()`, Python `get_body_count()`,
   WASM `getBodyCount()` and `MeshIntegrity.bodyCount`. Pass `mode="vertex"`
   (C++ `BodyConnectivity::Vertex`) for the old rule. Two boxes touching at one
   corner: 2 bodies by edge, 1 by vertex.
 - **Loads print nothing on success** (0.1.0 printed "Loaded STL: ..." and the
   STEP loader's progress to stdout). Native failures still go to stderr.
+
+### Open: the body-count definition (owner ruling pending)
+
+0.2.0 changed the default body count from vertex-connected to edge-connected
+(see Breaking). Which rule the geometry factories mean by "body count" is an
+owner ruling. It is the gate before any consumer makes geom-core its default
+mesh oracle; until then the default stays `edge` and nothing here changes.
+
+The question was put as "edge vs vertex". Measured against trimesh, the edge
+side is really two rules, because trimesh joins faces only across an edge that
+exactly two faces use. All three rules, written out:
+
+- **Edge-connected (E).** Two triangles belong to the same body when a chain
+  of triangles joins them in which each triangle shares a whole edge (both of
+  its endpoints) with the next, however many triangles use that edge.
+  - This is the geom-core 0.2.0 default: `Mesh::bodyCount(BodyConnectivity::Edge)`,
+    `Analyzer::getBodyCount()`, Python `get_body_count()` (`mode="edge"`), WASM
+    `getBodyCount()` and `MeshIntegrity.bodyCount` (`src/Mesh.cpp` unions
+    every pair of faces on an edge).
+- **Manifold-edge-connected (E2).** The same, except that an edge joins
+  triangles only when exactly two triangles use it. An edge shared by three or
+  more triangles, which is a non-manifold seam, joins nothing. These are the
+  connected components of trimesh's `face_adjacency`. Every consumer's trimesh
+  path counts this way today:
+  - trimesh `mesh.split(only_watertight=False)` and
+    `trimesh.graph.connected_components(mesh.face_adjacency)`;
+  - yantra4d `TrimeshOracle.body_count`;
+  - Blueprint `TrimeshOracle.body_count`;
+  - hyperobjects-spec `y4d_spec.geometry._bodies`, which feeds the
+    `body-count` rule that checks each manifest's declared
+    `geometry.body_count`.
+- **Vertex-connected (V).** Two triangles belong to the same body when a chain
+  joins them in which each triangle shares at least one vertex with the next.
+  These are the connected components of the vertex graph.
+  - This was geom-core 0.1.0's only rule. In 0.2.0 it is
+    `BodyConnectivity::Vertex`, Python `get_body_count(mode="vertex")` and WASM
+    `getBodyCount("vertex")`.
+  - trimesh's `Trimesh.body_count` property counts this way, and so does
+    Blueprint's `vertex_joined_body_count`, which only classifies parity
+    records.
+
+**Where they differ.** Measured with the geom-core 0.2.0 Python wheel and
+trimesh 4.x, after `merge_vertices()` (geom-core also welds exactly
+coincident vertices on load):
+
+| Case | E (geom-core 0.2.0) | E2 (trimesh paths) | V |
+|---|---|---|---|
+| Two boxes sharing one corner | 2 | 2 | 1 |
+| Two triangles meeting at one vertex (a bow tie) | 2 | 2 | 1 |
+| Two boxes sharing one edge (four faces on it) | 1 | 2 | 1 |
+| Two boxes sharing a whole face (coincident faces) | 1 | 4 | 1 |
+| Two separate boxes | 2 | 2 | 2 |
+
+Under every rule the shared corner, edge or face is a non-manifold feature,
+and `assessIntegrity()` reports it. The rule decides only how many parts the
+count reports. A solid mesh is manifold and gives the same count under all
+three rules.
+
+**What each answer changes.**
+- *E2.* geom-core adds it (for example `BodyConnectivity::ManifoldEdge`) and
+  makes it the default. Every trimesh path keeps its numbers, and the
+  `MESH_ORACLE=both` soaks then expect no body-count mismatches at all.
+- *E (today's default).* The trimesh paths, including the hyperobjects-spec
+  `body-count` rule, would have to move to geom-core's count. Until they do,
+  the soaks will report a body-count mismatch on every render with a
+  non-manifold edge or face contact (geom-core counts fewer).
+  - Blueprint's classifier would file the edge case under
+    `body_count_vertex_contact`: its test is only "fewer, and equal to the
+    vertex-joined count", so the label reads as a vertex contact when the
+    contact is an edge.
+- *V.* geom-core's default goes back to vertex, and the hyperobjects-spec
+  rule and the declared counts would move to V. Every vertex, edge or face
+  contact then becomes one body.
+
+Of the two `MESH_ORACLE=both` soaks prepared on 2026-10-19, only Blueprint's
+compares body counts; so does the hyperobjects-spec oracle. yantra4d's API
+seam compares quote volume, area and bounding box only.
+
+The owner records the ruling by appending a dated block to internal-devops
+`decisions/2026-10-18-geom-core-shared-mesh-analysis-layer.md`, pointing at
+this section.
 
 ### Added
 
