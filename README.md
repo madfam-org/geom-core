@@ -521,14 +521,19 @@ fails CI if any of them disagree. To bump: edit those three files together.
 must equal `v` + the version) and on manual dispatch (a dry run that only keeps
 the artefacts on the workflow run). It builds and tests:
 
-- Python wheels for the CI matrix (Linux x86_64 for Python 3.8–3.11, macOS for
-  3.10–3.11) plus an sdist. Wheels are built **without OCCT** (`has_occt` is
-  `False`; STEP loading is unavailable in released wheels). Linux wheels carry
-  the plain `linux_x86_64` tag, not `manylinux`, so they install from the
-  Release URL on a compatible glibc but cannot be uploaded to PyPI as-is.
+- Python wheels plus an sdist: Linux x86_64 for Python 3.8–3.12, built by
+  `cibuildwheel` in the `manylinux_2_28` image and repaired by `auditwheel`
+  (tag `manylinux_2_28_x86_64`: any glibc ≥ 2.28, e.g. Debian bookworm and
+  trixie, Ubuntu 20.04+), and macOS `universal2` (arm64 + x86_64) for
+  3.10–3.12. Wheels are built **without OCCT** (`has_occt` is `False`; STEP
+  loading is unavailable in released wheels). Releases up to 0.2.0 shipped
+  plain `linux_x86_64` Linux wheels built on Ubuntu 24.04, which need
+  `GLIBCXX_3.4.32` and `GLIBC_2.32` (Debian trixie or newer) and cannot go to
+  PyPI.
 - The npm tarball `madfam-geom-core-<version>.tgz`: the TypeScript SDK (ESM,
-  CJS, types) plus the threaded WASM module in `dist/wasm/` (browsers need
-  cross-origin isolation for `SharedArrayBuffer`).
+  CJS, types) plus the single-threaded WASM module (`./wasm`, the default) and
+  the threaded one (`./threaded`, needs cross-origin isolation) in
+  `dist/wasm/`.
 
 and attaches them to the Release with the workflow's own `github.token`.
 
@@ -536,9 +541,9 @@ and attaches them to the Release with the workflow's own `github.token`.
 
 Not automated: it needs credentials only the owner holds and two decisions —
 whether `@madfam/geom-core` goes to `npm.madfam.io` (private) or public npm,
-and PyPI trusted publishing for `geom-core`. PyPI also needs `manylinux`
-wheels (for example via `cibuildwheel`), which the Release job does not build
-today. Until then, consumers pin a Release asset URL.
+and PyPI trusted publishing for `geom-core`. The Release job builds
+`manylinux_2_28` wheels from the release after 0.2.0 on, which PyPI accepts.
+Until publishing is set up, consumers pin a Release asset URL.
 
 ## Adoption plan (R8)
 

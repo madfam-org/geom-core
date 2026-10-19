@@ -4,6 +4,20 @@ All notable changes to geom-core. Versions follow [SemVer](https://semver.org/)
 (pre-1.0: a minor bump may break); `pyproject.toml` is the single version
 source. Release assets are attached to the GitHub Release of each `v*` tag.
 
+## Unreleased
+
+### CI and release
+
+- **Linux wheels are `manylinux_2_28`.** `release.yml` builds the Linux
+  x86_64 wheels (cp38–cp312) with `cibuildwheel` in the `manylinux_2_28`
+  image and repairs them with `auditwheel`, so they carry the
+  `manylinux_2_28_x86_64` tag and install on any glibc ≥ 2.28 (Debian
+  bookworm included). 0.1.0 and 0.2.0 shipped plain `linux_x86_64` wheels
+  built on Ubuntu 24.04 that need `GLIBCXX_3.4.32` and `GLIBC_2.32`, i.e. a
+  Debian trixie or newer base. The job fails unless all five wheels carry the
+  manylinux tag, and it runs `scripts/run_tests.sh` against each installed
+  wheel. macOS wheels are unchanged (`universal2`, py3.10–3.12).
+
 ## 0.2.0
 
 First consumers (yantra4d Studio in the browser, hyperobjects-spec keystone
