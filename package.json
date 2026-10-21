@@ -87,7 +87,7 @@
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.57.1",
     "jsdom": "^27.4.0",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vite": "7.3.7",
     "vitest": "^4.1.11"
   },
